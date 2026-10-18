@@ -1,0 +1,6 @@
+.venv/
+.azure/
+.workflow-checkpoints/
+.pytest_cache/
+__pycache__/
+.env
