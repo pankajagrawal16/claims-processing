@@ -96,10 +96,19 @@ A successful run identifies the deployment, Foundry account, Search service, and
 Storage account, then reports that `.env` was created with permissions `600`. Verify
 the file and required variable names without displaying their secret values:
 
-```bash
-stat -c '%a %n' .env
-sed -n 's/^\([A-Z0-9_]*\)=.*/\1/p' .env
-```
+=== "Bash/zsh"
+
+    ```bash
+    stat -c '%a %n' .env
+    sed -n 's/^\([A-Z0-9_]*\)=.*/\1/p' .env
+    ```
+
+=== "PowerShell"
+
+    ```powershell
+    (Get-Item .env).Attributes
+    Get-Content .env | ForEach-Object { if ($_ -match '^([A-Z0-9_]+)=') { $Matches[1] } }
+    ```
 
 In PowerShell, inspect the file's Windows permissions in File Explorer or with
 `Get-Acl .env`; list configured variable names without revealing their values:

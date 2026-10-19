@@ -31,10 +31,19 @@ python index_crash_statements.py
 
 Confirm that all ten statement images were indexed:
 
-```bash
-curl "$FOUNDRY_IQ_SEARCH_ENDPOINT/indexes/crash-statements/docs/\$count?api-version=2023-11-01" \
-  -H "api-key: $FOUNDRY_IQ_SEARCH_KEY"
-```
+=== "Bash/zsh"
+
+    ```bash
+    curl "$FOUNDRY_IQ_SEARCH_ENDPOINT/indexes/crash-statements/docs/\$count?api-version=2023-11-01" \
+      -H "api-key: $FOUNDRY_IQ_SEARCH_KEY"
+    ```
+
+=== "PowerShell"
+
+    ```powershell
+    Invoke-RestMethod -Uri "$env:FOUNDRY_IQ_SEARCH_ENDPOINT/indexes/crash-statements/docs/`$count?api-version=2023-11-01" `
+      -Headers @{ "api-key" = $env:FOUNDRY_IQ_SEARCH_KEY }
+    ```
 
 Create the Foundry IQ knowledge source and knowledge base:
 
