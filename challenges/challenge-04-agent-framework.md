@@ -437,13 +437,21 @@ the HTTP hosting layer used by the deployed container.
 with `Ctrl+C`, and restart it with the collector's OTLP endpoint (use the port shown by
 your Toolkit):
 
-```bash
-OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
-OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf python main.py
-```
+=== "Bash/zsh"
 
-In PowerShell, set `$env:OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318"` and
-`$env:OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"`, then run `python main.py`.
+    ```bash
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 \
+    OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf python main.py
+    ```
+
+=== "PowerShell"
+
+    ```powershell
+    $env:OTEL_EXPORTER_OTLP_ENDPOINT = "http://localhost:4318"
+    $env:OTEL_EXPORTER_OTLP_PROTOCOL = "http/protobuf"
+    python main.py
+    ```
+
 Trace and graph views depend on your Toolkit version and instrumentation; opening
 Agent Inspector alone does not enable trace export. Local workflow spans and remote
 prompt-agent traces can be separate.

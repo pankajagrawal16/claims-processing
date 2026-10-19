@@ -353,14 +353,25 @@ content; it remains subject to Application Insights access and retention policie
 For an azd-managed deployment, list sessions and select the one whose version and
 timestamps match your test:
 
-```bash
-azd ai agent sessions list --agent-name "$SERVICE" --output table
-SESSION_ID="<session-id-from-the-list>"
-azd ai agent monitor "$SERVICE" --session-id "$SESSION_ID" --tail 100
-azd ai agent monitor "$SERVICE" --session-id "$SESSION_ID" --type system --tail 100
-```
+=== "Bash/zsh"
 
-In PowerShell, use `$SESSION_ID="<session-id-from-the-list>"`. The Python client does
+    ```bash
+    azd ai agent sessions list --agent-name "$SERVICE" --output table
+    SESSION_ID="<session-id-from-the-list>"
+    azd ai agent monitor "$SERVICE" --session-id "$SESSION_ID" --tail 100
+    azd ai agent monitor "$SERVICE" --session-id "$SESSION_ID" --type system --tail 100
+    ```
+
+=== "PowerShell"
+
+    ```powershell
+    azd ai agent sessions list --agent-name $SERVICE --output table
+    $SESSION_ID = "<session-id-from-the-list>"
+    azd ai agent monitor $SERVICE --session-id $SESSION_ID --tail 100
+    azd ai agent monitor $SERVICE --session-id $SESSION_ID --type system --tail 100
+    ```
+
+The Python client does
 not save its session to azd, so pass the selected ID explicitly rather than relying
 on `monitor` to choose it. For live output, add `--follow` to the console-log command
 and stop it with `Ctrl+C`. Toolkit/portal users can select the matching version/session
