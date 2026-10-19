@@ -18,9 +18,9 @@
 ## Challenge 2 - Foundry IQ vs. Direct Search
 
 - **Main instructions:** [Task 4](https://github.com/pankajagrawal16/MicroHack/blob/main/03-Azure/01-04-AI/05_Claims_Processing/challenges/challenge-02.md#task-4-understand-how-foundry-iq-grounding-is-added-through-a-knowledge-base-no-action-required) describes knowledge-base retrieval through `MCPTool`.
-- **Code:** [`_build_foundry_iq_tool`](../docs/claims-intake-agent.py#L164) uses `AzureAISearchTool` to query the index directly, bypassing the knowledge base.
+- **Code:** [`_build_crash_statements_knowledge_tool`](../docs/claims-intake-agent.py) originally used `AzureAISearchTool` to query the index directly, bypassing the knowledge base. The code now uses an `MCPTool` that calls the `crash-statements-kb` knowledge base MCP endpoint, as in the intelligence agent.
 - **Suggested improvement:** Align the instructions with direct index retrieval, or implement the documented MCP knowledge-base path. The [improvements branch](https://github.com/pankajagrawal16/MicroHack/tree/improvements/03-Azure/01-04-AI/05_Claims_Processing) is the proposal workspace; this discrepancy is not resolved merely by adding a workflow.
-- **Resolution in current changes:** Task 4 now presents the supplied agent's grounding in Foundry IQ terms. The `crash-statements-kb` knowledge base from Task 2 is Foundry IQ's managed retrieval layer over the same `crash-statements` index, and the supplied agent reaches that index through the Foundry project's Azure AI Search connection. The instructions state that this code path does not call the knowledge-base MCP endpoint, so they no longer imply the agent uses `MCPTool`. The code is unchanged; wiring the agent to the knowledge-base MCP path remains the open option in the suggested improvement above.
+- **Resolution in current changes:** The intake agent now uses the `crash-statements-kb` knowledge base through an `MCPTool`, the same pattern as the intelligence agent. `_ensure_foundry_agent()` updates an existing agent when its MCP tool changes. Task 4 and the solution walkthrough describe that path. The live agent has not been updated by this change; run `python docs/claims-intake-agent.py --indexed-claim crash1` after `labautomation/get-keys.sh` writes the project endpoint to `.env`.
 
 ## Challenge 3 - Verification Fails on MCP API Version
 

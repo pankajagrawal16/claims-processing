@@ -9,9 +9,9 @@ description: "Solution walkthrough for indexing claim statements and running the
 
 This solution indexes the ten supplied claim statement images, creates the
 `crash-statements-kb` knowledge base for portal exploration, and runs the Claims
-Intake Agent against a sample statement. The supplied agent queries the
-`crash-statements` index directly with its Azure AI Search tool; it does not use the
-knowledge base's MCP endpoint.
+Intake Agent against a sample statement. The supplied agent calls the
+`crash-statements-kb` knowledge base through its MCP endpoint, which queries the
+`crash-statements` index.
 
 ## Prerequisites
 
@@ -70,7 +70,7 @@ and an agent summary. At least one result should reference
 * [ ] The search index contains ten documents
 * [ ] The `crash-statements-kb` knowledge base exists
 * [ ] The `claims-intake-agent` appears in the Foundry project
-* [ ] The agent has an Azure AI Search tool configured for the `crash-statements` index
+* [ ] The agent has an MCP tool configured for the `crash-statements-kb` knowledge base
 * [ ] The intake artifact contains OCR, extracted data, search results, and an agent summary
 * [ ] At least one matching statement is returned
 

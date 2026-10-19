@@ -12,13 +12,7 @@ from typing import Any
 
 import httpx
 from azure.ai.projects import AIProjectClient
-from azure.ai.projects.models import (
-    AISearchIndexResource,
-    AzureAISearchTool,
-    AzureAISearchToolResource,
-    ConnectionType,
-    PromptAgentDefinition,
-)
+from azure.ai.projects.models import MCPTool, PromptAgentDefinition
 from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
@@ -28,17 +22,24 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(REPO_ROOT / ".env")
 
 FOUNDRY_AGENT_NAME = "claims-intake-agent"
+CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME = os.environ.get(
+    "FOUNDRY_IQ_KNOWLEDGE_BASE_NAME", "crash-statements-kb"
+)
+CRASH_STATEMENTS_SERVER_LABEL = "crash-statements-knowledge-base"
+MCP_API_VERSION = os.environ.get("FOUNDRY_IQ_MCP_API_VERSION", "2026-08-01-preview")
 FOUNDRY_AGENT_INSTRUCTIONS = (
-    "When the input starts with INDEXED_STATEMENT_TASK, call azure_ai_search exactly once "
+    "When the input starts with INDEXED_STATEMENT_TASK, call the "
+    f"{CRASH_STATEMENTS_SERVER_LABEL} server's knowledge_base_retrieve tool exactly once "
     "using only the supplied source filename as a quoted phrase query. Do not add generic "
     "words, claimant details, dates, or locations to this query. Summarize only the exact "
     "matching statement. For other inputs, follow the OCR intake instructions below. "
-    "You are the Claims Intake Agent. Before answering, you MUST call the azure_ai_search "
-    "tool exactly once to search the crash statements index using key identifying details "
-    "from the OCR text (claimant name, date, location). Always perform this search first, "
-    "even if you believe you already know the answer. Then, in 2-3 sentences, summarize the "
-    "claimant, vehicle, and incident from the new OCR text, and note whether the retrieved "
-    "match is consistent with it."
+    "You are the Claims Intake Agent. Before answering, you MUST call the "
+    f"{CRASH_STATEMENTS_SERVER_LABEL} server's knowledge_base_retrieve tool exactly once "
+    "to search the crash statements using key identifying details from the OCR text "
+    "(claimant name, date, location). Always perform this search first, even if you believe "
+    "you already know the answer. Then, in 2-3 sentences, summarize the claimant, vehicle, "
+    "and incident from the new OCR text, and note whether the retrieved match is consistent "
+    "with it."
 )
 
 
@@ -150,47 +151,73 @@ def run_mistral_ocr(image_path: Path) -> dict[str, Any]:
     }
 
 
-def _get_ai_search_connection_id(client: AIProjectClient) -> str:
-    """Find the Azure AI Search connection attached to the Foundry project (Foundry IQ)."""
-    connection = next(
-        (c for c in client.connections.list() if c.type == ConnectionType.AZURE_AI_SEARCH),
-        None,
-    )
+def _get_knowledge_connection_id(client: AIProjectClient, knowledge_base_name: str) -> str:
+    """Find the RemoteTool connection that targets the Foundry IQ knowledge base."""
+    expected_name = os.environ.get("FOUNDRY_IQ_CRASH_STATEMENTS_CONNECTION_NAME", "")
+    connections = [
+        connection
+        for connection in client.connections.list()
+        if getattr(connection.type, "value", connection.type) in {"RemoteTool", "RemoteTool_Preview"}
+    ]
+    if expected_name:
+        connection = next(
+            (item for item in connections if item.name == expected_name or item.id == expected_name),
+            None,
+        )
+    else:
+        connection = next(
+            (item for item in connections if knowledge_base_name in (getattr(item, "target", "") or "")),
+            None,
+        )
+
     if connection is None:
         raise RuntimeError(
-            "No Azure AI Search connection found on the Foundry project. Complete Task 2 "
-            "(create + populate the crash-statements index) and ensure the AI Search resource "
-            "is connected to your Foundry project."
+            f"No Foundry RemoteTool connection targets '{knowledge_base_name}'. "
+            "Redeploy labautomation/azuredeploy.json, then rerun the intake agent."
         )
     return connection.id
 
 
-def _build_foundry_iq_tool(client: AIProjectClient, index_name: str) -> AzureAISearchTool:
-    """Build the Foundry IQ (Azure AI Search) tool that grounds the agent in crash statements."""
-    connection_id = _get_ai_search_connection_id(client)
-    return AzureAISearchTool(
-        azure_ai_search=AzureAISearchToolResource(
-            indexes=[
-                AISearchIndexResource(
-                    project_connection_id=connection_id,
-                    index_name=index_name,
-                    query_type="simple",
-                    top_k=3,
-                )
-            ]
-        )
+def _build_crash_statements_knowledge_tool(client: AIProjectClient) -> MCPTool:
+    """Build the MCP tool that retrieves indexed crash statements through Foundry IQ."""
+    search_endpoint = (
+        os.environ.get("FOUNDRY_IQ_SEARCH_ENDPOINT")
+        or os.environ.get("SEARCH_SERVICE_ENDPOINT", "")
+    ).rstrip("/")
+    if not search_endpoint:
+        raise RuntimeError("FOUNDRY_IQ_SEARCH_ENDPOINT is not set. Complete Task 1 first.")
+
+    return MCPTool(
+        server_label=CRASH_STATEMENTS_SERVER_LABEL,
+        server_url=(
+            f"{search_endpoint}/knowledgebases/{CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME}"
+            f"/mcp?api-version={MCP_API_VERSION}"
+        ),
+        require_approval="never",
+        allowed_tools=["knowledge_base_retrieve"],
+        project_connection_id=_get_knowledge_connection_id(client, CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME),
     )
 
 
-def _ensure_foundry_agent(client: AIProjectClient, model_deployment: str, index_name: str) -> None:
-    """Register the Claims Intake Agent or update it when its model or instructions change."""
+def _ensure_foundry_agent(client: AIProjectClient, model_deployment: str) -> None:
+    """Register the Claims Intake Agent or update it when its model, instructions, or tool change."""
+    expected_tool = _build_crash_statements_knowledge_tool(client)
     try:
         client.agents.get(FOUNDRY_AGENT_NAME)
         versions = list(client.agents.list_versions(FOUNDRY_AGENT_NAME))
         latest_version = max(versions, key=lambda version: int(version.version))
+        latest_tools = getattr(latest_version.definition, "tools", None) or []
+        latest_tool_matches = any(
+            getattr(tool, "type", None) == "mcp"
+            and getattr(tool, "server_label", None) == CRASH_STATEMENTS_SERVER_LABEL
+            and getattr(tool, "server_url", None) == expected_tool.server_url
+            and getattr(tool, "project_connection_id", None) == expected_tool.project_connection_id
+            for tool in latest_tools
+        )
         if (
             latest_version.definition.model == model_deployment
             and latest_version.definition.instructions == FOUNDRY_AGENT_INSTRUCTIONS
+            and latest_tool_matches
         ):
             return
     except ResourceNotFoundError:
@@ -199,27 +226,33 @@ def _ensure_foundry_agent(client: AIProjectClient, model_deployment: str, index_
     definition = PromptAgentDefinition(
         model=model_deployment,
         instructions=FOUNDRY_AGENT_INSTRUCTIONS,
-        tools=[_build_foundry_iq_tool(client, index_name)],
+        tools=[expected_tool],
     )
     client.agents.create_version(agent_name=FOUNDRY_AGENT_NAME, definition=definition)
 
 
 def _extract_foundry_iq_matches(response: Any, index_name: str) -> dict[str, Any]:
-    """Pull the Foundry IQ (Azure AI Search) tool call results out of the agent response."""
+    """Pull the Foundry IQ knowledge base references out of the agent response."""
     matches: list[dict[str, Any]] = []
     for item in getattr(response, "output", []) or []:
-        if getattr(item, "type", None) != "azure_ai_search_call_output":
+        if getattr(item, "type", None) != "mcp_call":
+            continue
+        if getattr(item, "name", None) != "knowledge_base_retrieve":
             continue
         try:
             payload = json.loads(item.output)
         except (json.JSONDecodeError, TypeError):
             continue
-        for doc in payload.get("documents", []):
+        if not isinstance(payload, dict):
+            continue
+        for reference in payload.get("references", []):
+            if reference.get("type") != "searchIndex":
+                continue
+            source = reference.get("sourceData") or {}
             matches.append(
                 {
-                    "id": doc.get("id", "unknown"),
-                    "content": doc.get("content", ""),
-                    "score": doc.get("score"),
+                    "id": reference.get("docKey") or source.get("id", "unknown"),
+                    "content": source.get("content", ""),
                 }
             )
 
@@ -282,7 +315,7 @@ def run_indexed_claim_intake(claim_reference: str) -> dict[str, Any]:
         credential=DefaultAzureCredential(process_timeout=30),
         allow_preview=True,
     )
-    _ensure_foundry_agent(client, model_deployment, index_name)
+    _ensure_foundry_agent(client, model_deployment)
 
     response = client.get_openai_client(agent_name=FOUNDRY_AGENT_NAME).responses.create(
         model=model_deployment,
@@ -332,7 +365,7 @@ def run_claims_intake(image_path: Path) -> dict[str, Any]:
         credential=DefaultAzureCredential(process_timeout=30),
         allow_preview=True,
     )
-    _ensure_foundry_agent(client, model_deployment, index_name)
+    _ensure_foundry_agent(client, model_deployment)
 
     openai_client = client.get_openai_client(agent_name=FOUNDRY_AGENT_NAME)
     response = openai_client.responses.create(
