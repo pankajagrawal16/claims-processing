@@ -10,7 +10,7 @@ import json
 
 from agentmesh.governance import GovernanceDenied, govern
 
-from claims_agt_security import POLICY_PATH, ClaimRun, call_sink, context_flags, run_scenario
+from claims_agt_security import POLICY_PATH, ClaimRun, call_sink, context_flags
 
 
 def _status(name: str, labels: set[str], **arguments) -> str:
@@ -63,19 +63,6 @@ def test_unknown_action_is_denied_by_default() -> None:
     except GovernanceDenied:
         return
     raise AssertionError("unknown action was not denied")
-
-
-def test_clean_scenario_blocks_payout_and_sends_notice() -> None:
-    payout, notice = run_scenario("clean")
-    assert payout["status"] == "DENIED"
-    assert notice["status"] == "EXECUTED"
-
-
-def test_exfiltration_scenario_blocks_both_sinks() -> None:
-    payout, notice = run_scenario("inject-exfiltration")
-    assert payout["status"] == "DENIED"
-    assert notice["status"] == "DENIED"
-    assert "deny-notify-with-private-context" in notice["reason"]
 
 
 def _tools(run: ClaimRun) -> dict:

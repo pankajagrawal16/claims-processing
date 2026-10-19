@@ -143,30 +143,3 @@ class ClaimRun:
             approve_payout,
             notify_claimant,
         ]
-
-
-def run_scenario(scenario: str, claim_id: str = "CLM-2026-001") -> list[dict]:
-    """Replay the action agent's tool calls for one scenario, without a model.
-
-    The reads happen in the same order as the FIDES script: decision, claimant
-    follow-up, then the policyholder record in the exfiltration scenario. The
-    sinks are called last.
-    """
-    if scenario not in SCENARIOS:
-        raise ValueError(f"Unknown scenario: {scenario}")
-
-    run = ClaimRun(claimant_message=SCENARIOS[scenario])
-    tools = {item.name: item for item in run.build_tools()}
-
-    tools["read_coverage_decision"].func(claim_id)
-    tools["read_claimant_message"].func(claim_id)
-    if scenario == "inject-exfiltration":
-        tools["read_policyholder_record"].func(SAMPLE_POLICYHOLDER_RECORD["policy_number"])
-
-    payout = json.loads(
-        tools["approve_payout"].func(claim_id, SAMPLE_DECISION["approved_amount"])
-    )
-    notice = json.loads(
-        tools["notify_claimant"].func(claim_id, SCENARIOS[scenario])
-    )
-    return [payout, notice]

@@ -125,7 +125,7 @@ From the `docs` folder, with `.venv-agt` active:
 python -m pytest test_claims_agt_security.py test_claims_agt_agent.py -v
 ```
 
-Twenty tests should pass. They cover the policy cases, the agent tools, the agent runs for
+Eighteen tests should pass. They cover the policy cases, the agent tools, and the agent runs for
 the three scenarios, and the labels the agent records.
 
 ### Task 5 (optional): Run the agent against a Foundry model
@@ -175,7 +175,7 @@ The toolkit is in public preview, so its API may change before general availabil
 - [ ] `.venv-agt` exists and `python -c "import agentmesh.governance"` succeeds.
 - [ ] The `clean` run shows `approve_payout` as `DENIED` and `notify_claimant` as `EXECUTED`.
 - [ ] The `inject-exfiltration` run shows `notify_claimant` as `DENIED` with `deny-notify-with-private-context`.
-- [ ] All twenty offline tests pass.
+- [ ] All eighteen offline tests pass.
 - [ ] You can name the labels on the policyholder record and why the payout sink ignores confidentiality.
 
 ## Next step
