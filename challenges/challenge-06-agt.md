@@ -20,13 +20,13 @@ sink body runs, the toolkit evaluates a YAML policy and either runs the sink or 
 The lab's code is in:
 
 - `docs/agt_claims_policy.yaml`: the policy rules
-- `docs/claims_agt_security.py`: the governed sinks and a scenario runner
+- `docs/claims_agt_security.py`: the governed sinks, the read tools, and a scenario runner
 - `docs/test_claims_agt_security.py`: offline tests
 
 > [!NOTE]
-> The scenario runner replays the action agent's tool calls without a language model. It
-> does not call Foundry. Connecting the governed sinks to the Foundry action agent is the
-> next step after this challenge.
+> The scenario runner and the offline tests replay the tools without a language model. The
+> tools are Agent Framework tools, and they attach to an agent (the tests check this with no
+> model client). Running the agent against Foundry is the next step after this challenge.
 
 > [!IMPORTANT]
 > This track does not replace Challenge 6. Complete the FIDES path or this alternate path,
@@ -51,7 +51,7 @@ Run these commands from the workshop root:
     ```bash
     python3.11 -m venv .venv-agt
     source .venv-agt/bin/activate
-    python -m pip install "agent-governance-toolkit[full]" pytest
+    python -m pip install "agent-governance-toolkit[full]" "agent-framework-core==1.13.0" pytest
     ```
 
 === "PowerShell"
@@ -59,7 +59,7 @@ Run these commands from the workshop root:
     ```powershell
     py -3.11 -m venv .venv-agt
     .\.venv-agt\Scripts\Activate.ps1
-    python -m pip install "agent-governance-toolkit[full]" pytest
+    python -m pip install "agent-governance-toolkit[full]" "agent-framework-core==1.13.0" pytest
     ```
 
 A `DeprecationWarning` about `agentmesh-platform` can appear. It doesn't affect this lab.
@@ -125,9 +125,10 @@ From the `docs` folder, with `.venv-agt` active:
 python -m pytest test_claims_agt_security.py -v
 ```
 
-The output should list ten tests, and all of them should pass. The tests cover trusted-only
+The output should list fifteen tests, and all of them should pass. The tests cover trusted-only
 payouts, claimant text in a payout, missing labels, public and private notices, an unknown
-tool, and the two full scenarios.
+tool, the two full scenarios, and the Agent Framework tools. The read tools add labels to the
+run as they execute, so the agent's tool calls carry the labels of everything it has read.
 
 ### Task 5: Understand who sets the labels
 
@@ -153,7 +154,7 @@ integrity labels. The notification sink checks only confidentiality labels.
 | Default behaviour | Blocks the sink when a label conflicts | Denies unless an allow rule matches |
 | Audit | FIDES audit log | Toolkit audit, enabled by default in `govern()` |
 | Quarantine of untrusted content | Optional auto-hide with a quarantine model | Not included |
-| Agent Framework integration | Native | Native middleware is listed by the toolkit; this lab wraps the sink functions directly |
+| Agent Framework integration | Native | Governed sinks exposed as Agent Framework tools; live agent wiring is the next step |
 
 The toolkit is in public preview, so the API may change before general availability.
 
@@ -162,7 +163,7 @@ The toolkit is in public preview, so the API may change before general availabil
 - [ ] `.venv-agt` exists and `python -c "import agentmesh.governance"` succeeds.
 - [ ] The `clean` scenario shows `approve_payout` as `DENIED` and `notify_claimant` as `EXECUTED`.
 - [ ] The `inject-exfiltration` scenario shows `notify_claimant` as `DENIED` with `deny-notify-with-private-context`.
-- [ ] All ten offline tests pass.
+- [ ] All fifteen offline tests pass.
 - [ ] You can name the two labels on the policyholder record and the reason the payout sink ignores confidentiality.
 
 ## Next step

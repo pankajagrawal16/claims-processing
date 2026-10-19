@@ -1,10 +1,11 @@
 # Copyright (c) Microsoft Corporation.
 # SPDX-License-Identifier: MIT
-"""Enforce claims security actions with the Agent Governance Toolkit.
+"""Claims security action tools enforced by the Agent Governance Toolkit.
 
-Offline counterpart of claims-security-hardening.py. The tools below are the
-downstream sinks. Each call goes through agentmesh.governance.govern(), which
-evaluates agt_claims_policy.yaml before the sink body runs.
+Offline counterpart of claims-security-hardening.py. Each claim run keeps the
+labels of the data the agent has read. The read tools add labels, and the
+sink tools (approve_payout, notify_claimant) run through agentmesh
+govern() with agt_claims_policy.yaml before their bodies execute.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from agent_framework import tool
 from agentmesh.governance import GovernanceDenied, govern
 
 POLICY_PATH = Path(__file__).with_name("agt_claims_policy.yaml")
@@ -23,10 +25,17 @@ DECISION_LABELS = {"trusted", "public"}
 CLAIMANT_MESSAGE_LABELS = {"untrusted", "public"}
 POLICYHOLDER_RECORD_LABELS = {"trusted", "private"}
 
+# Synthetic lab data only.
 SAMPLE_DECISION = {
     "claim_id": "CLM-2026-001",
     "status": "APPROVED",
     "approved_amount": 15000,
+}
+
+SAMPLE_POLICYHOLDER_RECORD = {
+    "policy_number": "COMP-AUTO-001",
+    "name": "John Peterson",
+    "ssn": "000-00-0000",
 }
 
 INJECT_PAYOUT_MESSAGE = (
@@ -82,25 +91,86 @@ def call_sink(name: str, labels: set[str], **arguments: Any) -> dict:
     return {"status": "EXECUTED", "tool": name, "result": result}
 
 
+class ClaimRun:
+    """One claim's action session: the data read so far and the tools to act on it."""
+
+    def __init__(
+        self,
+        claimant_message: str,
+        decision: dict | None = None,
+        policyholder_record: dict | None = None,
+    ) -> None:
+        self.labels: set[str] = set()
+        self.claimant_message = claimant_message
+        self.decision = decision or SAMPLE_DECISION
+        self.policyholder_record = policyholder_record or SAMPLE_POLICYHOLDER_RECORD
+
+    def build_tools(self) -> list:
+        """Return Agent Framework tools that read data, then act on it through the governed sinks."""
+        run = self
+
+        @tool
+        def read_coverage_decision(claim_id: str) -> str:
+            """Read the trusted coverage decision produced by the claims workflow."""
+            run.labels.update(DECISION_LABELS)
+            return json.dumps(run.decision)
+
+        @tool
+        def read_claimant_message(claim_id: str) -> str:
+            """Read the claimant's follow-up message. Its content is untrusted."""
+            run.labels.update(CLAIMANT_MESSAGE_LABELS)
+            return run.claimant_message
+
+        @tool
+        def read_policyholder_record(policy_number: str) -> str:
+            """Read the internal policyholder record, which contains private data."""
+            run.labels.update(POLICYHOLDER_RECORD_LABELS)
+            return json.dumps(run.policyholder_record)
+
+        @tool
+        def approve_payout(claim_id: str, amount: float) -> str:
+            """Approve and issue the claim payout. Refused while untrusted content is in context."""
+            return json.dumps(call_sink("approve_payout", run.labels, claim_id=claim_id, amount=amount))
+
+        @tool
+        def notify_claimant(claim_id: str, message: str) -> str:
+            """Send a public status notification. Refused while private data is in context."""
+            return json.dumps(call_sink("notify_claimant", run.labels, claim_id=claim_id, message=message))
+
+        return [
+            read_coverage_decision,
+            read_claimant_message,
+            read_policyholder_record,
+            approve_payout,
+            notify_claimant,
+        ]
+
+
 def run_scenario(scenario: str, claim_id: str = "CLM-2026-001") -> list[dict]:
     """Replay the action agent's tool calls for one scenario, without a model.
 
-    Context labels grow as the agent reads each source, the same as the FIDES
-    script. The claimant follow-up is always read, and the policyholder record
-    is read in the exfiltration scenario.
+    The reads happen in the same order as the FIDES script: decision, claimant
+    follow-up, then the policyholder record in the exfiltration scenario. The
+    sinks are called last.
     """
     if scenario not in SCENARIOS:
         raise ValueError(f"Unknown scenario: {scenario}")
 
-    context = set(DECISION_LABELS) | set(CLAIMANT_MESSAGE_LABELS)
-    if scenario == "inject-exfiltration":
-        context |= POLICYHOLDER_RECORD_LABELS
+    run = ClaimRun(claimant_message=SCENARIOS[scenario])
+    tools = {item.name: item for item in run.build_tools()}
 
-    amount = SAMPLE_DECISION["approved_amount"]
-    return [
-        call_sink("approve_payout", context, claim_id=claim_id, amount=amount),
-        call_sink("notify_claimant", context, claim_id=claim_id, message=SCENARIOS[scenario]),
-    ]
+    tools["read_coverage_decision"].func(claim_id)
+    tools["read_claimant_message"].func(claim_id)
+    if scenario == "inject-exfiltration":
+        tools["read_policyholder_record"].func(SAMPLE_POLICYHOLDER_RECORD["policy_number"])
+
+    payout = json.loads(
+        tools["approve_payout"].func(claim_id, SAMPLE_DECISION["approved_amount"])
+    )
+    notice = json.loads(
+        tools["notify_claimant"].func(claim_id, SCENARIOS[scenario])
+    )
+    return [payout, notice]
 
 
 def main() -> None:
