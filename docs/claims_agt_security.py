@@ -10,7 +10,6 @@ govern() with agt_claims_policy.yaml before their bodies execute.
 
 from __future__ import annotations
 
-import argparse
 import json
 from pathlib import Path
 from typing import Any
@@ -171,18 +170,3 @@ def run_scenario(scenario: str, claim_id: str = "CLM-2026-001") -> list[dict]:
         tools["notify_claimant"].func(claim_id, SCENARIOS[scenario])
     )
     return [payout, notice]
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Claims security actions enforced by the Agent Governance Toolkit")
-    parser.add_argument("--scenario", choices=sorted(SCENARIOS), default="inject-payout")
-    parser.add_argument("--claim-id", default="CLM-2026-001")
-    args = parser.parse_args()
-
-    print(f"Scenario: {args.scenario}")
-    for outcome in run_scenario(args.scenario, args.claim_id):
-        print(json.dumps(outcome, indent=2))
-
-
-if __name__ == "__main__":
-    main()

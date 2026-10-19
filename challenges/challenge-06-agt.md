@@ -1,4 +1,4 @@
-# Challenge 6 (Alternate) - Enforce the Claims Security Actions with the Agent Governance Toolkit
+# Challenge 6 (Alternate) - Govern the Claims Security Agent with the Agent Governance Toolkit
 
 [Home](../index.md) | [Challenge 6 (FIDES)](challenge-06.md)
 
@@ -11,22 +11,22 @@ This alternate path protects the same two downstream actions as [Challenge 6](ch
 - `approve_payout` must not run while claimant-written text is in the agent's context.
 - `notify_claimant` must not run while private policyholder data is in the agent's context.
 
-Instead of FIDES, enforcement uses the
-[Agent Governance Toolkit](https://github.com/microsoft/agent-governance-toolkit). Each
-sink is wrapped with `govern()` from the toolkit's `agentmesh.governance` package. Before a
-sink body runs, the toolkit evaluates a YAML policy and either runs the sink or raises
-`GovernanceDenied`.
+Instead of FIDES, the sinks are enforced by the
+[Agent Governance Toolkit](https://github.com/microsoft/agent-governance-toolkit). Each sink
+is wrapped with `govern()`, which evaluates a YAML policy before the sink body runs. The
+sinks are Microsoft Agent Framework tools, so the agent's own tool loop calls them.
 
 The lab's code is in:
 
 - `docs/agt_claims_policy.yaml`: the policy rules
-- `docs/claims_agt_security.py`: the governed sinks, the read tools, and a scenario runner
-- `docs/test_claims_agt_security.py`: offline tests
+- `docs/claims_agt_security.py`: the governed sinks and the read tools that add labels
+- `docs/claims_agt_agent.py`: a real Agent Framework agent that uses those tools
+- `docs/test_claims_agt_security.py` and `docs/test_claims_agt_agent.py`: offline tests
 
 > [!NOTE]
-> The scenario runner and the offline tests replay the tools without a language model. The
-> tools are Agent Framework tools, and they attach to an agent (the tests check this with no
-> model client). Running the agent against Foundry is the next step after this challenge.
+> By default the agent's model is a scripted client. It plays back the tool calls a model
+> would make, so the example runs offline with no Azure access. The agent loop, the tools,
+> and the governance checks are all real. Task 4 runs the same agent against a Foundry model.
 
 > [!IMPORTANT]
 > This track does not replace Challenge 6. Complete the FIDES path or this alternate path,
@@ -37,12 +37,12 @@ The lab's code is in:
 - Python 3.11 on your `PATH`. Check it with `python --version`.
 - The repository, opened at the workshop root (the folder containing `pyproject.toml`).
 
-The toolkit is installed in its own environment. The workshop's pinned environment is not
-changed. Running this challenge needs no Azure access.
+The toolkit and Agent Framework are installed in their own environment. The workshop's
+pinned environment is not changed. Tasks 1 to 3 need no Azure access.
 
 ## Tasks
 
-### Task 1: Create the toolkit environment
+### Task 1: Create the environment
 
 Run these commands from the workshop root:
 
@@ -64,7 +64,7 @@ Run these commands from the workshop root:
 
 A `DeprecationWarning` about `agentmesh-platform` can appear. It doesn't affect this lab.
 
-### Task 2: Read the policy
+### Task 2: Read the policy and the agent
 
 Open `docs/agt_claims_policy.yaml`. The policy denies by default (`default_action: deny`).
 It has two allow rules and three deny rules:
@@ -77,36 +77,37 @@ It has two allow rules and three deny rules:
 | `deny-notify-with-private-context` | deny | `notify_claimant` while `private_in_context` is true |
 | `deny-when-labels-missing` | deny | `labels_missing` is true for any call |
 
-The `govern()` call uses the default `deny_overrides` strategy. A matching deny rule blocks
-the call even if an allow rule also matches. An unknown tool has no allow rule, so the
-default deny applies.
+`govern()` uses the default `deny_overrides` strategy. A matching deny rule blocks the call
+even if an allow rule also matches. The rule language has no negation or list membership, so
+the host computes the flags from the labels in `context_flags()`.
 
-The rule language has no negation and no list membership, so the host computes the flags
-from the labels in `context_flags()`.
+Then open `docs/claims_agt_agent.py`. `build_agent()` creates an Agent Framework agent and
+gives it the tools from `ClaimRun.build_tools()`. Those tools are the agent's only way to act.
 
-### Task 3: Run the scenarios
+### Task 3: Run the agent through the three scenarios
 
-Replay the three scenarios from the FIDES challenge:
+From the `docs` folder, with `.venv-agt` active:
 
 === "Bash/zsh"
 
     ```bash
     cd docs
-    python claims_agt_security.py --scenario clean
-    python claims_agt_security.py --scenario inject-payout
-    python claims_agt_security.py --scenario inject-exfiltration
+    python claims_agt_agent.py --scenario clean
+    python claims_agt_agent.py --scenario inject-payout
+    python claims_agt_agent.py --scenario inject-exfiltration
     ```
 
 === "PowerShell"
 
     ```powershell
     Set-Location docs
-    python claims_agt_security.py --scenario clean
-    python claims_agt_security.py --scenario inject-payout
-    python claims_agt_security.py --scenario inject-exfiltration
+    python claims_agt_agent.py --scenario clean
+    python claims_agt_agent.py --scenario inject-payout
+    python claims_agt_agent.py --scenario inject-exfiltration
     ```
 
-Expected results:
+Each run prints the labels the agent had read, the outcome of each sink call, and the summary.
+Expected outcomes:
 
 | Scenario | `approve_payout` | `notify_claimant` | Why |
 |---|---|---|---|
@@ -114,26 +115,36 @@ Expected results:
 | `inject-payout` | `DENIED` | `EXECUTED` | The injected payout request comes from claimant text, so the payout is refused. |
 | `inject-exfiltration` | `DENIED` | `DENIED` | The policyholder record is in context, so the notice is refused. The payout is also refused for the claimant text. |
 
-A denied call prints the rule that matched, such as
-`deny-payout-with-untrusted-context`.
+A denied call reports the rule that matched, such as `deny-payout-with-untrusted-context`.
 
 ### Task 4: Run the offline tests
 
 From the `docs` folder, with `.venv-agt` active:
 
 ```bash
-python -m pytest test_claims_agt_security.py -v
+python -m pytest test_claims_agt_security.py test_claims_agt_agent.py -v
 ```
 
-The output should list fifteen tests, and all of them should pass. The tests cover trusted-only
-payouts, claimant text in a payout, missing labels, public and private notices, an unknown
-tool, the two full scenarios, and the Agent Framework tools. The read tools add labels to the
-run as they execute, so the agent's tool calls carry the labels of everything it has read.
+Twenty tests should pass. They cover the policy cases, the agent tools, the agent runs for
+the three scenarios, and the labels the agent records.
 
-### Task 5: Understand who sets the labels
+### Task 5 (optional): Run the agent against a Foundry model
 
-The toolkit does not label data. The host must label every value as it enters the workflow.
-Each value carries two labels, one for integrity and one for confidentiality:
+This step replaces the scripted model with a Foundry model. It needs the Foundry project
+endpoint in `FOUNDRY_PROJECT_ENDPOINT`, an optional `FOUNDRY_MODEL`, and `az login` with a
+lab account that can use the project. It uses your model quota.
+
+```bash
+python claims_agt_agent.py --scenario inject-payout --live
+```
+
+With a live model, the outcomes come from the model's own tool choices. The governance checks
+are the same. If the model does not call the sinks, the sink outcomes list is empty.
+
+### Task 6: Understand who sets the labels
+
+The toolkit does not label data. The host labels every value as it enters the workflow. Each
+value carries two labels, one for integrity and one for confidentiality:
 
 | Source | Integrity | Confidentiality | Why |
 |---|---|---|---|
@@ -141,30 +152,31 @@ Each value carries two labels, one for integrity and one for confidentiality:
 | The claimant's follow-up message | `untrusted` | `public` | Written by the claimant. |
 | The policyholder record | `trusted` | `private` | Internal personal data. |
 
-A value derived from several sources carries all of their labels. The payout sink checks only
-integrity labels. The notification sink checks only confidentiality labels.
+The read tools in `ClaimRun` add these labels when the agent reads each source. A value derived
+from several sources carries all of their labels. The payout sink checks only integrity labels.
+The notification sink checks only confidentiality labels.
 
 ## How this compares with FIDES
 
 | Capability | FIDES (Challenge 6) | Agent Governance Toolkit (this track) |
 |---|---|---|
 | Enforcement point | Before the tool body, inside Agent Framework middleware | Before the tool body, via `govern()` around the tool function |
-| Labelling | Attached by the framework to tool results and messages | Attached by the host; the toolkit does not label data |
+| Labelling | Attached by the framework to tool results and messages | Attached by the host in the read tools; the toolkit does not label data |
 | Sink declarations | Tool metadata (`accepts_untrusted`, `max_allowed_confidentiality`) | YAML rules over the sink name and the context flags |
 | Default behaviour | Blocks the sink when a label conflicts | Denies unless an allow rule matches |
 | Audit | FIDES audit log | Toolkit audit, enabled by default in `govern()` |
 | Quarantine of untrusted content | Optional auto-hide with a quarantine model | Not included |
-| Agent Framework integration | Native | Governed sinks exposed as Agent Framework tools; live agent wiring is the next step |
+| Agent Framework integration | Native middleware | The governed sinks are Agent Framework tools, run by the agent loop |
 
-The toolkit is in public preview, so the API may change before general availability.
+The toolkit is in public preview, so its API may change before general availability.
 
 ## Validation checklist
 
 - [ ] `.venv-agt` exists and `python -c "import agentmesh.governance"` succeeds.
-- [ ] The `clean` scenario shows `approve_payout` as `DENIED` and `notify_claimant` as `EXECUTED`.
-- [ ] The `inject-exfiltration` scenario shows `notify_claimant` as `DENIED` with `deny-notify-with-private-context`.
-- [ ] All fifteen offline tests pass.
-- [ ] You can name the two labels on the policyholder record and the reason the payout sink ignores confidentiality.
+- [ ] The `clean` run shows `approve_payout` as `DENIED` and `notify_claimant` as `EXECUTED`.
+- [ ] The `inject-exfiltration` run shows `notify_claimant` as `DENIED` with `deny-notify-with-private-context`.
+- [ ] All twenty offline tests pass.
+- [ ] You can name the labels on the policyholder record and why the payout sink ignores confidentiality.
 
 ## Next step
 
