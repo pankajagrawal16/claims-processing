@@ -20,7 +20,7 @@
 - **Main instructions:** [Task 4](https://github.com/pankajagrawal16/MicroHack/blob/main/03-Azure/01-04-AI/05_Claims_Processing/challenges/challenge-02.md#task-4-understand-how-foundry-iq-grounding-is-added-through-a-knowledge-base-no-action-required) describes knowledge-base retrieval through `MCPTool`.
 - **Code:** [`_build_foundry_iq_tool`](../docs/claims-intake-agent.py#L164) uses `AzureAISearchTool` to query the index directly, bypassing the knowledge base.
 - **Suggested improvement:** Align the instructions with direct index retrieval, or implement the documented MCP knowledge-base path. The [improvements branch](https://github.com/pankajagrawal16/MicroHack/tree/improvements/03-Azure/01-04-AI/05_Claims_Processing) is the proposal workspace; this discrepancy is not resolved merely by adding a workflow.
-- **Resolution in current changes:** Challenge 2 and its solution walkthrough now distinguish the portal knowledge-base exercise from the supplied agent's direct Azure AI Search index tool. The instructions describe the actual index connection and retrieval configuration.
+- **Resolution in current changes:** Task 4 now presents the supplied agent's grounding in Foundry IQ terms. The `crash-statements-kb` knowledge base from Task 2 is Foundry IQ's managed retrieval layer over the same `crash-statements` index, and the supplied agent reaches that index through the Foundry project's Azure AI Search connection. The instructions state that this code path does not call the knowledge-base MCP endpoint, so they no longer imply the agent uses `MCPTool`. The code is unchanged; wiring the agent to the knowledge-base MCP path remains the open option in the suggested improvement above.
 
 ## Challenge 3 - Verification Fails on MCP API Version
 

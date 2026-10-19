@@ -204,9 +204,9 @@ Key points:
 
 At this point the agent can already summarize OCR text using the model alone — it has no grounding in your crash statement evidence yet. That's the enterprise need you'll add next.
 
-### Task 4: Understand how the supplied agent queries Azure AI Search directly (no action required)
+### Task 4: Understand how Foundry IQ grounding reaches the supplied agent (no action required)
 
-A generic model has no way to know about your organization's crash statement evidence. The supplied agent grounds its answers by attaching the Foundry project's Azure AI Search connection and querying the `crash-statements` index populated in Task 1. This code path does not call the `crash-statements-kb` MCP endpoint created in Task 2.
+Foundry IQ grounds the supplied agent in the crash statements. Task 1 indexes the statements in the `crash-statements` Azure AI Search index. The `crash-statements-kb` knowledge base you created in Task 2 is Foundry IQ's managed retrieval layer over that same index. The supplied agent reaches the index through the Foundry project's Azure AI Search connection, so its answers are grounded in the same statements. This code path does not call the `crash-statements-kb` MCP endpoint.
 
 ```python
 def _build_foundry_iq_tool(client: AIProjectClient, index_name: str) -> AzureAISearchTool:
