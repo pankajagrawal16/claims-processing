@@ -28,9 +28,11 @@ The lab's code is in:
 > would make, so the example runs offline with no Azure access. The agent loop, the tools,
 > and the governance checks are all real. Task 4 runs the same agent against a Foundry model.
 
-> [!IMPORTANT]
-> This track does not replace Challenge 6. Complete the FIDES path or this alternate path,
-> not both, unless your coach asks you to compare them.
+> [!NOTE]
+> FIDES and the Agent Governance Toolkit are two different ways to govern an agent's tools.
+> FIDES tracks how labelled data flows through the agent and enforces that inside the Agent
+> Framework middleware. The toolkit wraps each tool in a policy check, and the rules decide
+> whether the tool body runs. Both pages use the same two claims actions, so you can compare them.
 
 ## Prerequisites
 
