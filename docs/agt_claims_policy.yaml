@@ -1,0 +1,40 @@
+# Copyright (c) Microsoft Corporation.
+# SPDX-License-Identifier: MIT
+#
+# Policy for the claims security action agent, enforced by the Agent Governance
+# Toolkit (agentmesh.governance.govern). Every data item carries two labels:
+#   integrity:        trusted | untrusted
+#   confidentiality:  public | private
+# The host computes the flags below from those labels. The rule language has no
+# negation or list membership, so the flags carry the label facts instead.
+#
+# Under the default deny_overrides strategy, any matching deny rule blocks the
+# call, even when an allow rule also matches.
+apiVersion: governance.toolkit/v1
+name: claims-security-action-policy
+default_action: deny
+rules:
+  - name: allow-approve-payout
+    condition: "action.type == 'approve_payout'"
+    action: allow
+    description: "Payout tool is available; integrity checks below apply."
+
+  - name: allow-notify-claimant
+    condition: "action.type == 'notify_claimant'"
+    action: allow
+    description: "Notification tool is available; confidentiality checks below apply."
+
+  - name: deny-payout-with-untrusted-context
+    condition: "action.type == 'approve_payout' and claim.untrusted_in_context"
+    action: deny
+    description: "Payout refuses to run while claimant-authored (untrusted) content is in context."
+
+  - name: deny-notify-with-private-context
+    condition: "action.type == 'notify_claimant' and claim.private_in_context"
+    action: deny
+    description: "Notification refuses to run while private policyholder data is in context."
+
+  - name: deny-when-labels-missing
+    condition: "claim.labels_missing"
+    action: deny
+    description: "Fail closed: every sink call must carry labels."

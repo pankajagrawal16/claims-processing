@@ -37,6 +37,7 @@ wheels/
 !/.github/workflows/
 /site/
 .venv-docs/
+.venv-agt/
 /docs/README.md
 /docs/docs/
 /docs/LICENSE

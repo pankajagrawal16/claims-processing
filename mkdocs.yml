@@ -70,6 +70,7 @@ nav:
       - Challenge 4 - Sequential alternative: challenges/challenge-04.md
       - Challenge 5 - Observability and evaluation: challenges/challenge-05.md
       - Challenge 6 - Security: challenges/challenge-06.md
+      - Challenge 6 (Alternate) - Label-flow policy: challenges/challenge-06-agt.md
   - Shell selection: shells.md
   - Contributing: contributing.md
 
