@@ -20,10 +20,8 @@ credentials. Your event lead provides a username and password for the console.
 Use them only during the event window your event lead set.
 
 1. Open [emea.microhack.cloud](https://emea.microhack.cloud/).
-2. Sign in with your username and password. If you are asked which account to use,
-   select **Use another account**.
-3. Set up multi-factor authentication and reset your password when prompted.
-4. On the home screen, open **Credentials**. You see only your own Azure lab
+2. Sign in with your username and password. 
+3. On the home screen, open **Credentials**. You see only your own Azure lab
    credentials. Keep them ready for the tasks below.
 
 The sign-in screen from step 2:

@@ -1,5 +1,35 @@
 from pathlib import Path
+import re
 import shutil
+
+
+ALERT_START = re.compile(r"^(\s*)>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(.*)$")
+BLOCKQUOTE_LINE = re.compile(r"^\s*>")
+
+
+def convert_alerts(text):
+    """Rewrite GitHub alert blocks (> [!NOTE]) as MkDocs admonitions (!!! note)."""
+    lines = text.split("\n")
+    out = []
+    i = 0
+    while i < len(lines):
+        match = ALERT_START.match(lines[i])
+        if not match:
+            out.append(lines[i])
+            i += 1
+            continue
+        indent, kind, first = match.groups()
+        body = [first.strip()] if first.strip() else []
+        i += 1
+        while i < len(lines) and BLOCKQUOTE_LINE.match(lines[i]):
+            body.append(re.sub(r"^\s*>\s?", "", lines[i]))
+            i += 1
+        out.append(f"{indent}!!! {kind.lower()}")
+        out.append("")
+        for line in body:
+            out.append(f"{indent}    {line}" if line.strip() else "")
+        out.append("")
+    return "\n".join(out)
 
 
 IGNORED_ENTRIES = shutil.ignore_patterns(
@@ -58,7 +88,7 @@ def on_pre_build(config):
         text = page.read_text().replace("../README.md", "../index.md")
         text = text.replace("../.foundry/.deployment.example.json", "../foundry-deployment.example.json")
         text = text.replace("../agent-framework/.agentignore", "../agent-framework/agentignore-example.txt")
-        page.write_text(text)
+        page.write_text(convert_alerts(text))
 
     shutil.copy2(
         repository / "agent-framework" / ".agentignore",
