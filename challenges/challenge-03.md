@@ -93,6 +93,11 @@ knowledge base. The Claims Intelligence Agent still uses its Foundry model to in
 the extracted policy fields and reason about claim coverage; the knowledge base handles
 document retrieval, not adjudication.
 
+If coverage validation reports that a Knowledge Base model must be specified for a reasoning
+effort other than **Minimal**, the `policies-kb` knowledge base was created before this
+setting was added. Rerun `python create_knowledge_base.py --policies` from the `docs` directory.
+The helper updates the existing knowledge base in place, then retry the coverage check.
+
 Expected result:
 
 ```text

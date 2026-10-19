@@ -65,6 +65,9 @@ path and applies its deductible.
 * If MCP verification reports an unsupported API version, confirm the
   `FOUNDRY_IQ_MCP_API_VERSION` value and ensure both Foundry project connection
   targets use the same version before rerunning `--setup-agent`
+* If coverage validation reports that a Knowledge Base model must be specified for a
+  reasoning effort other than Minimal, rerun `python create_knowledge_base.py --policies`
+  to update `policies-kb` with Minimal reasoning and Extractive data output
 
 ## Validation checklist
 

@@ -30,7 +30,7 @@
 - **Fix:** Default MCP endpoints to `2026-08-01-preview` (verified on this Search service), align project connection URLs, and refresh the agent when tool URLs or connections change. `FOUNDRY_IQ_MCP_API_VERSION` can override the script default. Run `python claims-intelligence-agent.py --setup-agent`, then retry the verification command.
 - **Suggested improvement:** The [improvements branch](https://github.com/pankajagrawal16/MicroHack/compare/main...improvements) contains the updated API version and setup guidance.
 - **Verified:** Updated both live project connections and the agent version. `--verify-crash-statement crash1_front` now returns John Peterson's `crash1_front.jpeg` statement with a source citation.
-- **Resolution in current changes:** Challenge 3 and its solution walkthrough document the default API version, the environment override, and the requirement to keep both project connection targets aligned with the MCP tool URLs before refreshing the agent.
+- **Resolution in current changes:** The current code defaults the MCP endpoints in [`claims-intelligence-agent.py`](../docs/claims-intelligence-agent.py), [`claims-intake-agent.py`](../docs/claims-intake-agent.py), and [`create_knowledge_base.py`](../docs/create_knowledge_base.py) to `2026-08-01-preview`, and the lab deployment's RemoteTool connections use the same version. Challenge 3 documents the default, the `FOUNDRY_IQ_MCP_API_VERSION` override, and the requirement to keep both project connection targets aligned with the MCP tool URLs before refreshing the agent.
 
 ## Challenge 3 - Policy Retrieval Requires a Knowledge-Base Model
 
@@ -38,6 +38,7 @@
 - **Fix:** Explicitly set `retrievalReasoningEffort` to `minimal` and `outputMode` to `extractiveData`, using the verified API version. Updated the setup helper and the live `policies-kb`; the agent still performs coverage reasoning.
 - **Verified:** Full coverage validation for the crash1 intake completes with no errors. It returns `DENIED` because the liability-only policy excludes own-vehicle damage.
 - **Suggested improvement:** Review the [knowledge-base setup changes on `improvements`](https://github.com/pankajagrawal16/MicroHack/blob/improvements/03-Azure/01-04-AI/05_Claims_Processing/docs/create_knowledge_base.py).
+- **Resolution in current changes:** `ensure_knowledge_base` in [`create_knowledge_base.py`](../docs/create_knowledge_base.py) sets `outputMode` to `extractiveData` and `retrievalReasoningEffort` to `minimal`, and uses the `2026-08-01-preview` MCP endpoint. Running `python create_knowledge_base.py --policies` creates or updates `policies-kb` in place, so existing workshop environments can be fixed by rerunning it. Challenge 3 explains the settings and the rerun step for the reasoning error.
 - **Resolution in current changes:** Challenge 3 and its solution walkthrough now explain the helper's Minimal reasoning and Extractive data settings and distinguish knowledge-base retrieval from the agent model's coverage reasoning.
 
 ## Challenge 3 - Escalation Example and Output Do Not Align
