@@ -37,13 +37,14 @@ and the `docs/` directory. Instructions may ask you to change into `docs/` or
 `agent-framework/` for a particular task. If a command fails with “file not found,”
 check your current directory before changing the command.
 
-## Bash-only helper scripts
+## Lab configuration helper
 
-The lab configuration helper `labautomation/get-keys.sh` requires **Bash 4 or later**
-(`mapfile` is not available in macOS's built-in Bash 3.2). On macOS, install a newer
-Bash or use the workshop Codespace. On Windows, run the helper from WSL or an
-installed Bash such as Git Bash; PowerShell's `bash` command can invoke it when that
-Bash executable is available on `PATH`.
+Two versions of the helper write the same `.env` file:
+
+- `labautomation/get-keys.sh` for Bash/zsh. It needs **Bash 4 or later**; macOS's
+  built-in Bash 3.2 is too old. Use the Codespace or a newer Bash.
+- `labautomation/get-keys.ps1` for PowerShell. It needs only Azure CLI, so no WSL or
+  Git Bash is required.
 
 For uploading missing sample assets, the repository also supplies
 `labautomation/upload-assets.ps1`. PowerShell users can use that script instead of

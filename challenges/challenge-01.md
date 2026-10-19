@@ -117,19 +117,25 @@ az login --use-device-code
 ```
 
 From the same workshop folder, run the setup script with the resource group name provided
-in your Hackbox:
+in your Hackbox. Use the script for your shell:
 
-```bash
-bash labautomation/get-keys.sh --resource-group "<your-resource-group-name>"
-```
+=== "Bash/zsh"
 
-On macOS, this helper requires Bash 4 or newer; the built-in Bash 3.2 is too old.
-In PowerShell, make sure a Bash 4+ executable (for example, Git Bash or WSL) is
-available as `bash`, then run:
+    ```bash
+    bash labautomation/get-keys.sh --resource-group "<your-resource-group-name>"
+    ```
 
-```powershell
-bash labautomation/get-keys.sh --resource-group "<your-resource-group-name>"
-```
+    This script needs Bash 4 or newer. macOS's built-in Bash 3.2 is too old; use the
+    Codespace or a newer Bash.
+
+=== "PowerShell"
+
+    ```powershell
+    .\labautomation\get-keys.ps1 -ResourceGroup "<your-resource-group-name>"
+    ```
+
+    This runs on Windows PowerShell or PowerShell 7 with no WSL or Git Bash needed.
+    Azure CLI must be installed.
 
 The script locates the latest successful Claims MicroHack deployment and creates a
 local `.env` file in the repository root. It retrieves the Foundry project endpoint,
@@ -224,7 +230,7 @@ Review the [solution architecture](../README.md#architecture) and identify where
 
 - **The Azure resource group is missing:** Confirm that you signed in with the assigned lab account and selected the assigned subscription in the Azure portal.
 - **The setup script reports an authorization error:** Confirm that the Codespace is signed in with the assigned lab account. That account must be able to read deployment outputs and list keys for the Foundry, Azure AI Search, and Storage resources.
-- **The Blob Storage verification reports an authorization error:** Run `get-keys.sh` again and confirm that `.env` contains a non-empty `AZURE_STORAGE_CONNECTION_STRING` value. Do not print or share the value.
+- **The Blob Storage verification reports an authorization error:** Run the get-keys script again (`get-keys.sh` in Bash/zsh or `get-keys.ps1` in PowerShell) and confirm that `.env` contains a non-empty `AZURE_STORAGE_CONNECTION_STRING` value. Do not print or share the value.
 - **A Blob Storage container is empty or incomplete:** Run `labautomation/upload-assets.sh` with your subscription, resource group, and Storage account values, then repeat the verification commands.
 - **The repository is not visible:** Confirm that you opened `https://github.com/pankajagrawal16/claims-processing` (Option A) or cloned that URL (Option B). For Option A, make sure you are signed in to your own GitHub account.
 - **The dev container configuration is unavailable:** Confirm that you opened `pankajagrawal16/claims-processing` before creating the Codespace.

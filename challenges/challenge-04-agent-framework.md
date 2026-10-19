@@ -149,19 +149,23 @@ for credential-chain behavior.
 If you still have a valid `.env`, keep it. If it was deleted, choose **one** method:
 
 **Existing Claims MicroHack deployment:** from the workshop root, regenerate the
-configuration as in Challenge 1:
+configuration as in Challenge 1. In Bash/zsh:
 
 ```bash
 bash labautomation/get-keys.sh --resource-group "<your-resource-group-name>"
 ```
 
+In PowerShell:
+
+```powershell
+.\labautomation\get-keys.ps1 -ResourceGroup "<your-resource-group-name>"
+```
+
 This replaces the root `.env`. It requires permission to read deployment outputs and
 list resource keys, even though the workflow itself only needs agent invocation
-permissions. The script requires **Bash 4+** (`mapfile`); macOS's built-in Bash 3.2
-cannot run it. In Windows PowerShell, install Bash 4+ (for example, Git Bash or WSL)
-and run `bash labautomation/get-keys.sh --resource-group "<your-resource-group-name>"`.
+permissions. Both scripts write the same file. It does not redeploy Azure resources or
+recreate the two agents.
 Alternatively, use the manual method below.
-It does not redeploy Azure resources or recreate the two agents.
 
 **Existing prepared Foundry project / no key-list permissions:** copy the template
 only if `.env` does not exist:

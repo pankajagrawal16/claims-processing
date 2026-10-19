@@ -73,18 +73,24 @@ az account set --subscription "<your-subscription-id>"
 
 ## Create the local configuration
 
-Run the setup script with the resource group name shown in the Hackbox:
+Run the setup script with the resource group name shown in the Hackbox. Use the script for
+your shell.
 
-```bash
-bash labautomation/get-keys.sh --resource-group "<your-resource-group-name>"
-```
+=== "Bash/zsh"
 
-This helper requires Bash 4 or newer. In PowerShell, first make sure Bash 4+ is
-available on `PATH`, then run:
+    ```bash
+    bash labautomation/get-keys.sh --resource-group "<your-resource-group-name>"
+    ```
 
-```powershell
-bash labautomation/get-keys.sh --resource-group "<your-resource-group-name>"
-```
+    This script needs Bash 4 or newer; macOS's built-in Bash 3.2 is too old.
+
+=== "PowerShell"
+
+    ```powershell
+    .\labautomation\get-keys.ps1 -ResourceGroup "<your-resource-group-name>"
+    ```
+
+    No WSL or Git Bash is needed. Azure CLI must be installed.
 
 A successful run identifies the deployment, Foundry account, Search service, and
 Storage account, then reports that `.env` was created with permissions `600`. Verify
