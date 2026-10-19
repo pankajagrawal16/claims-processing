@@ -676,17 +676,17 @@ resource just for this challenge, delete it as well.
 
 ## Validation checklist
 
-- You found the knowledge-base call and the token count in a trace.
-- With the Agent Framework CLI, you found the printed trace ID and expanded the
+- [ ] You found the knowledge-base call and the token count in a trace.
+- [ ] With the Agent Framework CLI, you found the printed trace ID and expanded the
   `claims.process` root into workflow/executor spans; you can explain why remote
   retrieval traces may still be separate.
-- You kept message-content capture off unless testing synthetic claims deliberately.
-- The batch evaluation completed and the console showed ground-truth accuracy per category.
-- You can explain why the judge passed a case that ground truth marks wrong.
-- You compared both runs and explained changed or unchanged rubric verdicts.
-- A continuous evaluation rule exists and `--status` lists runs (then you deleted it).
-- You compared the guardrail test before and after, and noted any false positive.
-- You ran the cleanup commands.
+- [ ] You kept message-content capture off unless testing synthetic claims deliberately.
+- [ ] The batch evaluation completed and the console showed ground-truth accuracy per category.
+- [ ] You can explain why the judge passed a case that ground truth marks wrong.
+- [ ] You compared both runs and explained changed or unchanged rubric verdicts.
+- [ ] A continuous evaluation rule exists and `--status` lists runs (then you deleted it).
+- [ ] You compared the guardrail test before and after, and noted any false positive.
+- [ ] You ran the cleanup commands.
 
 ## Troubleshooting
 

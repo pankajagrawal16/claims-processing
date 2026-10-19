@@ -335,11 +335,11 @@ With this connection in place, Foundry can list and read blobs from the `claims-
 
 ## Validation checklist
 
-- OCR call succeeds with `status: success`.
-- The `claims-intake-agent` agent appears under your Foundry project's agents (visible via the SDK or the Foundry portal).
-- At least one crash statement match is returned from the `crash-statements-kb` knowledge base.
-- Output JSON is created and contains `ocr`, `foundry_iq`, and `agent_summary` sections.
-- (Optional) The Storage account connection appears under **Connected resources** in the Foundry portal with a status of **Connected**.
+- [ ] OCR call succeeds with `status: success`.
+- [ ] The `claims-intake-agent` agent appears under your Foundry project's agents (visible via the SDK or the Foundry portal).
+- [ ] At least one crash statement match is returned from the `crash-statements-kb` knowledge base.
+- [ ] Output JSON is created and contains `ocr`, `foundry_iq`, and `agent_summary` sections.
+- [ ] (Optional) The Storage account connection appears under **Connected resources** in the Foundry portal with a status of **Connected**.
 
 ## Next step
 

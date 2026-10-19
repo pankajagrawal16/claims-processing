@@ -235,14 +235,14 @@ liability-only policy.
 
 ## Validation checklist
 
-- Policy retrieval succeeds through the `policies-kb` Foundry IQ knowledge base and the cache is populated on the first call.
-- The `claims-intelligence-agent` appears under your Foundry project's agents with its MCP retrieval tool.
-- The LLM adjudicator returns a valid JSON decision with all required fields.
-- `approved_amount` reflects the claim amount minus the applicable deductible, capped at the policy limit.
-- The audit trail contains at least two entries: `retrieve_policy` and `validate_coverage`.
-- Escalation path sets `status` to `ESCALATED` and populates `errors`.
-- A liability-only policy correctly denies a collision claim and lists `own_vehicle_damage` or `collision` in `exclusions_matched`.
-- `consistency_score` is an integer between 1 and 100 that agrees with the decision: scores below 30 do not coincide with `is_covered: true`, and scores of 90+ do not require escalation unless a hard policy limit is exceeded.
+- [ ] Policy retrieval succeeds through the `policies-kb` Foundry IQ knowledge base and the cache is populated on the first call.
+- [ ] The `claims-intelligence-agent` appears under your Foundry project's agents with its MCP retrieval tool.
+- [ ] The LLM adjudicator returns a valid JSON decision with all required fields.
+- [ ] `approved_amount` reflects the claim amount minus the applicable deductible, capped at the policy limit.
+- [ ] The audit trail contains at least two entries: `retrieve_policy` and `validate_coverage`.
+- [ ] Escalation path sets `status` to `ESCALATED` and populates `errors`.
+- [ ] A liability-only policy correctly denies a collision claim and lists `own_vehicle_damage` or `collision` in `exclusions_matched`.
+- [ ] `consistency_score` is an integer between 1 and 100 that agrees with the decision: scores below 30 do not coincide with `is_covered: true`, and scores of 90+ do not require escalation unless a hard policy limit is exceeded.
 
 ## Next step
 

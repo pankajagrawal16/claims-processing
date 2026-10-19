@@ -208,18 +208,18 @@ intelligence agent retrieves and structures that policy before making its decisi
 
 ## Validation checklist
 
-- The console lists the two agent steps in order.
-- Challenge 4 reuses `claims-intelligence-agent` without creating a replacement.
-- The final output contains `policy_info` and `coverage_decision` from the intelligence
+- [ ] The console lists the two agent steps in order.
+- [ ] Challenge 4 reuses `claims-intelligence-agent` without creating a replacement.
+- [ ] The final output contains `policy_info` and `coverage_decision` from the intelligence
     agent.
-- `status` is `APPROVED`, `DENIED`, or `ESCALATED`.
-- `approved_amount` uses the deductible and limit extracted from the real policy file.
-- The liability-only command returns `DENIED` with `collision` or
+- [ ] `status` is `APPROVED`, `DENIED`, or `ESCALATED`.
+- [ ] `approved_amount` uses the deductible and limit extracted from the real policy file.
+- [ ] The liability-only command returns `DENIED` with `collision` or
     `own_vehicle_damage` in `exclusions_matched`.
-- Human review runs only for an escalated or low-confidence decision.
-- A requested review enters `PENDING_HUMAN_REVIEW` and blocks until the reviewer enters
+- [ ] Human review runs only for an escalated or low-confidence decision.
+- [ ] A requested review enters `PENDING_HUMAN_REVIEW` and blocks until the reviewer enters
     a valid decision.
-- Invalid review input leaves the workflow paused and displays the prompt again.
+- [ ] Invalid review input leaves the workflow paused and displays the prompt again.
 
 ## Next step
 

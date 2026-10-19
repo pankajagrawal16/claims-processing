@@ -50,6 +50,9 @@ markdown_extensions:
   - attr_list
   - md_in_html
   - pymdownx.details
+  - pymdownx.tasklist:
+      custom_checkbox: true
+      clickable_checkbox: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -88,3 +91,4 @@ not_in_nav: |
 
 extra_javascript:
   - https://unpkg.com/mermaid@11.4.1/dist/mermaid.min.js
+  - javascripts/checklist.js

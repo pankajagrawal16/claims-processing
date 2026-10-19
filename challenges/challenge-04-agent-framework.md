@@ -759,16 +759,16 @@ the `PENDING_HUMAN_REVIEW` result; answering it resumes the workflow.
 
 ## Validation checklist
 
-- The console reports intake (Step 1) before intelligence processing (Step 2).
-- The workflow reuses `claims-intake-agent` and `claims-intelligence-agent` without creating
+- [ ] The console reports intake (Step 1) before intelligence processing (Step 2).
+- [ ] The workflow reuses `claims-intake-agent` and `claims-intelligence-agent` without creating
   replacement agents.
-- The result includes the requested claim ID, retrieved policy, coverage reasoning,
+- [ ] The result includes the requested claim ID, retrieved policy, coverage reasoning,
   approved amount, and final status.
-- The liability-only command returns `DENIED` with `collision` or `own_vehicle_damage` in
+- [ ] The liability-only command returns `DENIED` with `collision` or `own_vehicle_damage` in
   `exclusions_matched`.
-- A requested review pauses until a valid answer is entered, and an invalid answer asks again.
-- `pytest` passes in `agent-framework`.
-- If you deployed: the hosted agent returns the same decision, and a review request can be
+- [ ] A requested review pauses until a valid answer is entered, and an invalid answer asks again.
+- [ ] `pytest` passes in `agent-framework`.
+- [ ] If you deployed: the hosted agent returns the same decision, and a review request can be
   answered.
 
 ## Troubleshooting
