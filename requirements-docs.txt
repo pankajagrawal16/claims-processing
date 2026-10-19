@@ -2,3 +2,5 @@ mkdocs==1.6.1
 mkdocs-material==9.7.1
 mkdocs-glightbox==0.5.2
 mkdocs-mermaid-zoom==0.1.0
+# selectolax 1.0.1 drops <img> tags during mkdocs-glightbox's rewrite; keep 1.0.0 until that is fixed.
+selectolax==1.0.0
