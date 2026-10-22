@@ -1,0 +1,17 @@
+.md-typeset .task-list-control {
+  --md-tasklist-icon: url("data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill-rule='evenodd' d='M12 1a11 11 0 1 0 0 22 11 11 0 0 0 0-22zm0 2a9 9 0 1 1 0 18 9 9 0 0 1 0-18z'/></svg>");
+  cursor: pointer;
+}
+
+.md-typeset .task-list-control .task-list-indicator:before {
+  background-color: var(--md-accent-fg-color);
+  transition: opacity 0.15s ease;
+}
+
+.md-typeset .task-list-control:hover .task-list-indicator:before {
+  opacity: 0.6;
+}
+
+.md-typeset .task-list-control [type="checkbox"]:checked + .task-list-indicator:before {
+  background-color: #00e676;
+}

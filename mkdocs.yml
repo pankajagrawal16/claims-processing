@@ -89,6 +89,9 @@ not_in_nav: |
   /data/policies/*.md
   /labautomation/README.md
 
+extra_css:
+  - stylesheets/checklist.css
+
 extra_javascript:
   - https://unpkg.com/mermaid@11.4.1/dist/mermaid.min.js
   - javascripts/checklist.js

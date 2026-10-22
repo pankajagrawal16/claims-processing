@@ -86,6 +86,19 @@ the host computes the flags from the labels in `context_flags()`.
 Then open `docs/claims_agt_agent.py`. `build_agent()` creates an Agent Framework agent and
 gives it the tools from `ClaimRun.build_tools()`. Those tools are the agent's only way to act.
 
+??? tip "💡 Why did I run this step?"
+
+    **Why deny by default.** An agent can call tools you did not anticipate. Starting from deny means a missing
+    rule fails safe instead of allowing the action.
+
+    **Why the host computes the flags.** The policy language cannot express "not" or list membership, so the code
+    turns the labels into simple true or false flags. The policy then only compares those flags.
+
+    **Why the tools are the only way to act.** If the model can act only through the wrapped tools, the policy
+    covers every action it can take. This is the core design choice: govern the action, not the prompt.
+
+    **What to take away.** Write rules about what the agent does, and make the default deny. Then a gap in the rules blocks the action instead of permitting it.
+
 ### Task 3: Run the agent through the three scenarios
 
 From the `docs` folder, with `.venv-agt` active:
@@ -176,6 +189,8 @@ The toolkit is in public preview, so its API may change before general availabil
 
 - [ ] `.venv-agt` exists and `python -c "import agentmesh.governance"` succeeds.
 - [ ] The `clean` run shows `approve_payout` as `DENIED` and `notify_claimant` as `EXECUTED`.
+- [ ] The `inject-payout` run shows `approve_payout` as `DENIED` with `deny-payout-with-untrusted-context`.
+- [ ] Each scenario's outcomes match the Task 3 table.
 - [ ] The `inject-exfiltration` run shows `notify_claimant` as `DENIED` with `deny-notify-with-private-context`.
 - [ ] All eighteen offline tests pass.
 - [ ] You can name the labels on the policyholder record and why the payout sink ignores confidentiality.

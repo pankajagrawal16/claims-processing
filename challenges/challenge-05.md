@@ -154,6 +154,22 @@ All setup commands start in the **repository root**.
    traces: automatic client instrumentation does not guarantee that every service
    propagates trace context. Correlate those calls by time and agent name when necessary.
 
+??? tip "💡 Why did I run this step?"
+
+    **Why traces instead of console output.** Console messages show what printed. A trace shows when each step
+    ran, how long it took, and whether it failed, in one tree, including the pause for human review.
+
+    **Why one root span per claim.** `claims.process` groups the whole claim under a single trace ID, so the
+    review pause and the continuation stay together rather than appearing as two unrelated runs.
+
+    **Why message content is off by default.** Prompts contain claim data, and trace data is visible to anyone
+    with access to the Application Insights resource. Capturing content should be a deliberate choice.
+
+    **Why two runs.** `crash1` and `crash3` take different paths through the workflow. Comparing their traces
+    shows where the time goes and where a review pause adds a delay.
+
+    **What to take away.** Use the trace to find where time and failures occur before you change any code.
+
 #### Optional: inspect prompts and responses with synthetic lab data
 
 Message content is **off by default** for this CLI, even if sensitive capture is enabled
@@ -397,7 +413,7 @@ Answer these questions from the trace:
 > Traces can contain claim details and personal data. Treat the Application Insights resource
 > like production telemetry: restrict access and review the retention settings.
 
-If no traces appear, see [Troubleshooting](#troubleshooting).
+If no traces appear, open the **Troubleshooting** section at the end of this challenge.
 
 ### Task 2: Run a batch evaluation with a rubric evaluator
 
@@ -685,24 +701,26 @@ resource just for this challenge, delete it as well.
 - [ ] You can explain why the judge passed a case that ground truth marks wrong.
 - [ ] You compared both runs and explained changed or unchanged rubric verdicts.
 - [ ] A continuous evaluation rule exists and `--status` lists runs (then you deleted it).
+- [ ] You found the request the guardrail blocked in **Traces**.
+- [ ] `claims-guardrail` exists and is assigned to `claims-intelligence-agent`.
 - [ ] You compared the guardrail test before and after, and noted any false positive.
 - [ ] You ran the cleanup commands.
 
-## Troubleshooting
+??? question "🛠️ Troubleshooting"
 
-| Symptom | What to check |
-|---|---|
-| No traces in **Traces** | Application Insights is not connected, there was no recent traffic, or ingestion is delayed. Connect it, run a claim, and refresh after a few minutes. |
-| No local workflow root span | Use the workshop environment with `uv sync --extra tracing`, set `APPLICATIONINSIGHTS_CONNECTION_STRING`, and run with `--trace`. Check exporter errors, outbound connectivity, and the connected Application Insights resource's Transaction search using the printed trace ID. |
-| Hosted decisions succeed but workflow spans are missing | Check Application Insights is connected to the hosted agent's project, confirm the active version after redeploying, and inspect that version's session logs for telemetry/export errors. The local `.env` and CLI `--trace` flag do not configure the hosted process. |
-| `azd ai agent monitor` has no saved session | The Python invocation client does not persist session state to azd. Use `sessions list --agent-name "$SERVICE"` and pass the matching session explicitly with `--session-id`. |
-| Trace exists but prompts/responses are absent | This is the CLI default. Only for synthetic lab data, add `--trace-content`. This does not change content recording on remote services. |
-| Authorization error when viewing traces | Add **Log Analytics Reader** on the Application Insights resource. If its tables are protected, also add **Privileged Monitoring Data Reader**. |
-| `ResourceNotFoundError ... evaluator ... not found` | Run `python claims-evaluation.py --create-rubric` first, or rerun with `--create-rubric --run`. |
-| Evaluation run shows `failed` | Open the report for the error. Check that the judge model (`FOUNDRY_MODEL`, default `gpt-5.4`) is deployed in the project. |
-| Continuous evaluation produces no results | Confirm the rule is enabled (`--status`), that traffic is flowing, and that the project's managed identity has **Foundry User**. Runs are skipped when the hourly limit is reached. |
-| The guardrail changes nothing | Confirm the guardrail is assigned to `claims-intelligence-agent` (an agent's guardrail replaces its model's) and that the controls cover the intervention point you are testing. |
-| A legitimate claim is blocked | Lower the blocking level for that risk, or remove the control, then re-measure. |
+    | Symptom | What to check |
+    |---|---|
+    | No traces in **Traces** | Application Insights is not connected, there was no recent traffic, or ingestion is delayed. Connect it, run a claim, and refresh after a few minutes. |
+    | No local workflow root span | Use the workshop environment with `uv sync --extra tracing`, set `APPLICATIONINSIGHTS_CONNECTION_STRING`, and run with `--trace`. Check exporter errors, outbound connectivity, and the connected Application Insights resource's Transaction search using the printed trace ID. |
+    | Hosted decisions succeed but workflow spans are missing | Check Application Insights is connected to the hosted agent's project, confirm the active version after redeploying, and inspect that version's session logs for telemetry/export errors. The local `.env` and CLI `--trace` flag do not configure the hosted process. |
+    | `azd ai agent monitor` has no saved session | The Python invocation client does not persist session state to azd. Use `sessions list --agent-name "$SERVICE"` and pass the matching session explicitly with `--session-id`. |
+    | Trace exists but prompts/responses are absent | This is the CLI default. Only for synthetic lab data, add `--trace-content`. This does not change content recording on remote services. |
+    | Authorization error when viewing traces | Add **Log Analytics Reader** on the Application Insights resource. If its tables are protected, also add **Privileged Monitoring Data Reader**. |
+    | `ResourceNotFoundError ... evaluator ... not found` | Run `python claims-evaluation.py --create-rubric` first, or rerun with `--create-rubric --run`. |
+    | Evaluation run shows `failed` | Open the report for the error. Check that the judge model (`FOUNDRY_MODEL`, default `gpt-5.4`) is deployed in the project. |
+    | Continuous evaluation produces no results | Confirm the rule is enabled (`--status`), that traffic is flowing, and that the project's managed identity has **Foundry User**. Runs are skipped when the hourly limit is reached. |
+    | The guardrail changes nothing | Confirm the guardrail is assigned to `claims-intelligence-agent` (an agent's guardrail replaces its model's) and that the controls cover the intervention point you are testing. |
+    | A legitimate claim is blocked | Lower the blocking level for that risk, or remove the control, then re-measure. |
 
 ## Next step
 

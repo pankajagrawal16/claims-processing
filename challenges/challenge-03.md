@@ -110,6 +110,19 @@ confirm that `policies-blob-ks` appears under **Knowledge sources** and `policie
 appears under **Knowledge bases**. Wait for the knowledge source synchronization to
 finish before continuing.
 
+??? tip "💡 Why did I run this step?"
+
+    **Why a Blob knowledge source instead of downloading the files.** Foundry IQ indexes the `policies`
+    container directly. Your code never downloads or parses the policy files, and a resync picks up any changed document.
+
+    **Why Minimal reasoning and extractive output.** This knowledge base only retrieves documents. The
+    Claims Intelligence Agent does the reasoning about coverage. Keeping retrieval simple means it needs no separate model.
+
+    **Why wait for the sync.** Until the first indexing run finishes, the knowledge base is empty. A query made
+    during the sync returns nothing, which looks like a missing policy when it is really a timing issue.
+
+    **What to take away.** Keep retrieval and decision-making separate. You can then check each part on its own.
+
 ### Task 2: Prepare the Claims Intelligence Agent
 
 Create or update `claims-intelligence-agent`. It retrieves policy documents through
@@ -140,12 +153,33 @@ python claims-intelligence-agent.py --verify-crash-statement crash1_front
 
 The Foundry IQ MCP endpoint uses the Search API version from
 `FOUNDRY_IQ_MCP_API_VERSION`; the default for this lab is `2026-08-01-preview`.
-If setup or verification fails with an unsupported `api-version` error, confirm that
-the Search service supports that version. Only override the variable with a version
-supported by your Search service. The deployment's two Foundry project connection
-targets also use the default version; if you override it, update both connection
-targets to the same endpoint version before rerunning `--setup-agent`. This keeps the
-MCP tool URLs and their project connections aligned.
+The agent's MCP URL and the Foundry project's `policies-kb` connection target must
+match. Changing `.env` or rerunning `--setup-agent` does not update a stale project
+connection.
+
+??? question "🛠️ If the agent reports 'api-version ... does not exist'"
+
+    Foundry uses the **project connection's** target URL to reach the knowledge base.
+    A stale `policies-kb` connection (for example, `api-version=2026-04-01`) can cause
+    this error even when the agent and `.env` use `2026-08-01-preview`.
+
+    1. Check `FOUNDRY_IQ_MCP_API_VERSION` in `.env` and your shell. For this lab,
+       use `2026-08-01-preview`; remove an older override.
+    2. From the `docs` directory, sign in with `az login` if needed and run:
+
+       ```text
+       python fix_policies_connection.py
+       ```
+
+       The helper reads the repository-root `.env`, updates **only** a stale
+       `policies-kb` RemoteTool target, and refreshes `claims-intelligence-agent` if
+       it still has an older connection binding. It uses your Azure sign-in, not a
+       Search API key, and stops if the connection is missing or is not using the
+       project's managed identity.
+    3. Rerun `python claims-intelligence-agent.py --verify-policies`. If
+       `--verify-crash-statement` instead reports this error for `crash-statements-kb`,
+       use `python fix_crash_statements_connection.py` as described in
+       [Challenge 2](./challenge-02.md), then rerun the verification.
 
 At this point, your project contains the two Foundry agents used in Challenge 4:
 `claims-intake-agent` from Challenge 2 and `claims-intelligence-agent` from this
@@ -180,6 +214,19 @@ If the command reports that no policy documents were found, ask your coach to
 verify the lab deployment and policy upload, then run the verification command
 again.
 
+??? tip "💡 Why did I run this step?"
+
+    **Why verify before the full run.** If Task 4 gives a wrong coverage decision, you need to know whether
+    retrieval or reasoning failed. This check runs retrieval alone. If all five policies come back, the problem is in the reasoning.
+
+    **Why these five IDs.** Each policy ID is what the decision output cites. For example, `LIAB-AUTO-001` is
+    the liability-only policy used in the exclusion path in Task 4.
+
+    **Why it uses the agent's own route.** The check goes through the same Foundry IQ tool the agent uses,
+    so it tests the path that matters for the decision.
+
+    **What to take away.** Test your data source separately from your logic. Then a failure points to one place.
+
 ### Task 4: Run the Claims Intelligence Agent
 
 Feed the intake artifact produced by the Claims Intake Agent in [Challenge 2](./challenge-02.md) straight into the Intelligence Agent:
@@ -206,14 +253,25 @@ Optional: try a high claim amount with the liability-only policy:
 python claims-intelligence-agent.py ../data/claims/crash1/derived/statements/crash1_front.intake.json --policy-number LIAB-AUTO-001 --claim-amount 95000
 ```
 
-This input does **not** deterministically trigger escalation. A high amount by itself
-does not cross a fixed escalation threshold; escalation depends on the adjudicator's
-response. Inspect `status`, `coverage_decision.requires_escalation`, and
-`coverage_decision.escalation_reason` in the printed JSON. When
-`requires_escalation` is `true`, the output also includes an `ESCALATION_REQUIRED`
-entry with severity `WARN` in `errors`. When it is `false`, a `DENIED` result with
-no escalation warning can be correct for an own-vehicle collision excluded by the
-liability-only policy.
+The high-amount example is a **what-if test**, not a guaranteed way to trigger escalation.
+
+??? tip "💡 Why did I run this step?"
+
+    **Why try different policies?** The same crash can have a different outcome under
+    different coverage. Compare the liability-only policy, which excludes damage to
+    your own car, with the comprehensive policy. Check `exclusions_matched` to see
+    *why* a claim was denied, rather than judging by the result alone.
+
+    **Why try a high amount?** A larger claim does not automatically go to a person
+    for review: there is no fixed dollar threshold in this example. The agent
+    decides whether manual review is needed based on the claim and the policy.
+
+    **What should I check?** Look at `status` and `coverage_decision.requires_escalation`
+    in the printed JSON. If review is needed, `status` is `ESCALATED`,
+    `coverage_decision.escalation_reason` explains why, and `errors` contains an
+    `ESCALATION_REQUIRED` warning. If review is not needed, `DENIED` with no warning
+    can be the right result: liability-only insurance does not cover this collision
+    damage to the claimant's own car.
 
 ## Expected output
 
@@ -235,6 +293,9 @@ liability-only policy.
 
 ## Validation checklist
 
+- [ ] `policies-blob-ks` and `policies-kb` appear under **Agentic retrieval**, and the knowledge source has finished synchronizing.
+- [ ] `--verify-policies` lists all five policies: `COMM-AUTO-001`, `COMP-AUTO-001`, `HV-AUTO-001`, `LIAB-AUTO-001`, and `MOTO-001`.
+- [ ] `--verify-crash-statement crash1_front` returns the indexed statement.
 - [ ] Policy retrieval succeeds through the `policies-kb` Foundry IQ knowledge base and the cache is populated on the first call.
 - [ ] The `claims-intelligence-agent` appears under your Foundry project's agents with its MCP retrieval tool.
 - [ ] The LLM adjudicator returns a valid JSON decision with all required fields.

@@ -352,73 +352,55 @@ the HTTP hosting layer used by the deployed container.
     Leave this terminal running. The server must be listening on port `8088` before
     you use either client below. Do not start a second server on the same port.
 
-    **Why `ResponsesHostServer` matters**
+    !!! info "💡 Why `ResponsesHostServer` matters"
 
-    [`main.py`](../agent-framework/main.py) loads the workshop-root `.env`, then starts
-    the workflow through `ResponsesHostServer`, provided by the
-    `agent-framework-foundry-hosting` package. The key expression is:
+        ##### 1. One workflow, two ways to call it
 
-    ```python
-    ResponsesHostServer(
-        build_workflow().as_agent(name="claims-workflow")
-    ).run(port=int(os.getenv("PORT", "8088")))
-    ```
+        Tasks 2-3 call the graph directly in Python. [`main.py`](../agent-framework/main.py)
+        makes **that same graph available over HTTP** with `ResponsesHostServer`:
 
-    | Part | What it does |
-    |---|---|
-    | `build_workflow()` | Builds the graph of executors, agent calls, and conditional human-review edges defined in `workflow.py` |
-    | `.as_agent(name="claims-workflow")` | Adapts that graph to the Agent Framework agent interface so the hosting server can invoke it; this does not register a new agent in Foundry |
-    | `ResponsesHostServer(...)` | Supplies the HTTP/protocol layer: accepts Responses API requests, invokes the adapted workflow, and exposes its outputs through the Responses API rather than requiring you to write HTTP handlers |
-    | `.run(...)` | Starts the server on `PORT`, defaulting to `8088`; the local Responses endpoint is `http://localhost:8088/responses` |
+        ```python
+        ResponsesHostServer(
+            build_workflow().as_agent(name="claims-workflow")
+        ).run(port=int(os.getenv("PORT", "8088")))
+        ```
 
-    In Tasks 2-3, the CLI calls the workflow directly in the Python process.
-    `ResponsesHostServer` makes the **same graph callable over HTTP**:
+        ##### 2. What each part does
 
-    ```text
-    Agent Inspector / Responses API client
-        -> ResponsesHostServer
-        -> workflow.as_agent()
-        -> intake -> policy retrieval -> coverage decision -> optional human review
-        -> Responses API result or review request
-    ```
+        - `build_workflow()` assembles intake, policy, decision, and review steps.
+        - `.as_agent(...)` adapts the graph; it **does not create another Foundry agent**.
+        - `ResponsesHostServer(...).run(...)` serves `/responses` on port `8088`
+          (or `PORT`) without custom HTTP handlers.
 
-    This is the bridge to both **local testing** and **hosted deployment**:
+        ##### 3. Why you'll use it
 
-    - **Here:** Agent Inspector or `invoke-hosted-claims-workflow.py --local` sends
-      requests to the local server instead of importing the workflow.
-    - **Human review:** a paused workflow is exposed as a `request_info` function call.
-      The caller returns the reviewer's answer as `function_call_output`, using the
-      `call_id` and `previous_response_id`, to continue the run. The caller supplies
-      the review UI; the server does not prompt in its terminal.
-    - **Task 5:** the Docker container starts the same `main.py`. Foundry routes hosted
-      requests to this server using the `responses` protocol declared in `azure.yaml`.
-      You do not need a separate workflow or a custom web API for deployment.
+        - **Local test:** Agent Inspector and `invoke-hosted-claims-workflow.py --local`
+          send requests to the server instead of importing Python code.
+        - **Human review:** the server returns a `request_info` call; the client sends
+          `function_call_output` with the `call_id` and `previous_response_id`.
+          The client, not the server terminal, collects the reviewer's answer.
+        - **Hosted agent (Task 5):** the container runs the same `main.py`.
+          Foundry routes requests using the `responses` protocol in `azure.yaml`.
 
-    Starting this server does **not** deploy or register an Azure resource. Local runs
-    still call the existing Foundry prompt agents and require Azure authentication.
-    The adapter also does not by itself guarantee durable recovery after a process restart.
-    Keep the process running while testing, then stop it with `Ctrl+C`.
+        **Local is not deployed:** starting the server creates no Azure resource.
+        It still needs Azure access for the existing Foundry agents; keep it running
+        while testing and stop it with `Ctrl+C`. The adapter alone does not provide
+        durable recovery after a restart.
 
-    **How this translates to LangChain/LangGraph**
+        ##### 4. LangChain/LangGraph equivalent (optional)
 
-    The commented example at the end of [`main.py`](../agent-framework/main.py) shows
-    the equivalent hosting pattern for an existing compiled LangGraph graph, including
-    one created with LangChain's `create_agent`. That framework uses
-    `ResponsesHostServer` from `langchain_azure_ai.agents.hosting`, not the
-    Agent Framework package, and accepts the graph directly without `.as_agent()`.
-    The client still uses `/responses`; you change the framework adapter, not write
-    a new HTTP API.
-
-    This is an illustration, not a required lab step or an automatic conversion of
-    the claims graph. Use a separate environment with the LangChain hosting dependencies
-    if you try it with your own app. Human-review interrupt/resume payloads differ, so
-    this lab's review client would need adapting. See the
-    [official LangChain/LangGraph hosting guide](https://learn.microsoft.com/azure/foundry/how-to/develop/langchain-hosted-agents)
-    for a complete example.
+        The commented example in [`main.py`](../agent-framework/main.py) uses
+        `ResponsesHostServer` from `langchain_azure_ai.agents.hosting` to serve a
+        compiled LangGraph graph directly, without `.as_agent()`. Clients still call
+        `/responses`. This is **not** an automatic conversion: it needs separate
+        dependencies, and human-review payloads need a different client. See the
+        [official LangChain/LangGraph hosting guide](https://learn.microsoft.com/azure/foundry/how-to/develop/langchain-hosted-agents)
+        if you want to try it.
 
 #### Test with VS Code and Agent Inspector
 
-1. Open the workshop root in VS Code and install the Foundry Toolkit extension.
+1. Open the workshop root in VS Code and install the
+   [Foundry Toolkit extension](https://learn.microsoft.com/azure/foundry/how-to/develop/install-foundry-toolkit-visual-studio-code).
 2. With the server running, open the Command Palette and run
    **Foundry Toolkit: Open Agent Inspector**. Select the local server at
    `http://localhost:8088` if prompted.
@@ -459,26 +441,24 @@ prompt-agent traces can be separate.
 #### Test with the terminal client script (no VS Code required)
 
 1. Keep the server running in the first terminal. Open a **second, interactive terminal**
-   at the workshop root and activate the hosting environment there too:
+   at the workshop root. Activate the hosting environment and run the client:
 
-    ```bash
-    source agent-framework/.venv/bin/activate
-    ```
+    === "Bash/zsh"
 
-    In PowerShell:
+        ```bash
+        source agent-framework/.venv/bin/activate
+        python docs/invoke-hosted-claims-workflow.py --local --indexed-claim crash3 --policy COMP-AUTO-001
+        ```
 
-    ```powershell
-    .\agent-framework\.venv\Scripts\Activate.ps1
-    ```
+    === "PowerShell"
 
-2. From the workshop root, run:
+        ```powershell
+        .\agent-framework\.venv\Scripts\Activate.ps1
+        python docs/invoke-hosted-claims-workflow.py --local --indexed-claim crash3 --policy COMP-AUTO-001
+        ```
 
-    ```bash
-    python docs/invoke-hosted-claims-workflow.py --local --indexed-claim crash3 --policy COMP-AUTO-001
-    ```
-
-    `--local` sends the request to `http://localhost:8088/responses`; it does not call
-    a deployed hosted agent. The server still invokes your existing Foundry prompt agents.
+2. `--local` sends the request to `http://localhost:8088/responses`; it does not call
+   a deployed hosted agent. The server still invokes your existing Foundry prompt agents.
 3. If review is requested, enter `approve`, `escalate`, or `deny` in the **client**
    terminal. The script returns your answer through the API and prints the final decision.
    The server terminal only shows server activity; it does not ask for reviewer input.
@@ -503,13 +483,13 @@ from the `agent-framework` directory with the threshold set for that process:
 
 This threshold forces every valid confidence score below `1.01` into human review.
 Run the terminal client command above again and answer the review prompt.
-After testing, stop the server. Clear the session override:
+After testing, stop the server and restart with `python main.py` to use the
+threshold from `.env` (default: `0.90`). The Bash/zsh assignment applies only
+to that server process. In PowerShell, clear the session override first:
 
 ```powershell
 Remove-Item Env:HUMAN_REVIEW_CONFIDENCE_THRESHOLD
 ```
-
-Restart with `python main.py` to use the threshold from `.env` (default: `0.90`).
 
 #### Run offline tests
 
@@ -619,8 +599,9 @@ Foundry project, without deploying replacement prompt agents or models.
 
 #### Deploy with Foundry Toolkit (VS Code)
 
-1. Open the cloned **repository root** in VS Code
-   and sign in to Azure from the Foundry Toolkit.
+1. Open the cloned **repository root** in VS Code, install the
+   [Foundry Toolkit extension](https://learn.microsoft.com/azure/foundry/how-to/develop/install-foundry-toolkit-visual-studio-code)
+   if you have not already, and sign in to Azure from the Toolkit.
 2. Open the Command Palette and run **Foundry Toolkit: Deploy Hosted Agent**.
 3. Follow the prompts to select your Foundry project. If asked for a workspace folder,
    choose the repository root containing `azure.yaml`.
@@ -687,6 +668,19 @@ container or ZIP deployment. Use a current `azd` and agents extension with
    Every successful deployment creates a new agent version. Switching methods for the
    same agent name creates a new version, not a second independent agent.
 
+??? tip "💡 Why did I run this step?"
+
+    **Why deploy at all.** Running the workflow on your laptop proves the logic. A hosted agent runs the same
+    code inside your Foundry project, with its own identity, so other people and services can call it without your machine.
+
+    **Why `azd` and a single service name.** `azd` records the environment values (project endpoint, subscription,
+    resource group) once and reuses them. `azure.yaml` decides whether the service is packaged as a container or a ZIP.
+
+    **Why every deploy makes a new version.** Foundry keeps each deployed version of the agent. Switching the
+    packaging method for the same agent name creates a new version, not a second agent, so you can compare or roll back.
+
+    **What to take away.** A deployed agent is code plus configuration plus identity. Check each one when a run fails.
+
 #### Give the agent access to your project
 
 The hosted agent runs with its own identity. By default it can run models through the project,
@@ -696,6 +690,19 @@ Do this if the first run fails with a permission error.
 1. In the Azure portal, open your Foundry project, then **Access control (IAM)**.
 2. Add a role assignment: role **Foundry User** (previously named *Azure AI User*). When
    selecting members, search for the hosted agent's name, `ClaimProcessingWorkflow`.
+
+??? tip "💡 Why did I run this step?"
+
+    **Why the same inputs as the local run.** Using the same claim and policy lets you compare the hosted result
+    with the local result from Challenge 4. A difference points to the deployment, not the logic.
+
+    **Why the script answers the review.** A hosted run can pause for human review. The script sends the answer and
+    continues the same run, the way a reviewer would in production. Without it, the run waits forever.
+
+    **Why the agent name matters.** The script calls a specific deployed agent. A typo or the `azure.yaml` key
+    sends the request to nothing, so use the exact name shown in Foundry.
+
+    **What to take away.** Test a deployed agent the way it will be used, with the same input, and check its logs when the result differs.
 
 #### Test the hosted agent
 
@@ -771,19 +778,19 @@ the `PENDING_HUMAN_REVIEW` result; answering it resumes the workflow.
 - [ ] If you deployed: the hosted agent returns the same decision, and a review request can be
   answered.
 
-## Troubleshooting
+??? question "🛠️ Troubleshooting"
 
-| Symptom | What to check |
-|---|---|
-| `Foundry hosted requests require a trusted user ID and call ID` | The deployed agent uses an old protocol version. Check that `azure.yaml` declares `responses` `2.0.0`, then redeploy. |
-| Build fails with `file not found` for `requirements.txt` | Deploy from the repository root; the service source/build folder is `agent-framework/`. |
-| ZIP deployment builds a container through ACR | Check the `claims-workflow-hosted` service has `codeConfiguration` and `language: python`, with no `docker` or `image` setting. |
-| ZIP dependency build or startup fails | Check Python 3.13 compatibility, remote package-feed access, and that `main.py`, `workflow.py`, and `requirements.txt` are at the ZIP root. The local Python 3.11 environment is not the ZIP runtime. |
-| `No policy number found ...` | The statement is not indexed. Complete Challenge 2, or pass `--policy`. |
-| The first hosted run fails with a permission error | Assign the **Foundry User** role to the hosted agent's identity (see above). |
-| `Human review is required, but ... non-interactive terminal` | Run in an interactive terminal, or call the hosted agent and answer through the API. |
-| The Inspector or server does not start | Run it with the `agent-framework/.venv` environment, not the lab environment. |
-| Package install fails on a restricted network | Pass your mirror: `pip install -r requirements-dev.txt --index-url <mirror>`, and for Docker `--build-arg PIP_INDEX_URL=<mirror>`. |
+    | Symptom | What to check |
+    |---|---|
+    | `Foundry hosted requests require a trusted user ID and call ID` | The deployed agent uses an old protocol version. Check that `azure.yaml` declares `responses` `2.0.0`, then redeploy. |
+    | Build fails with `file not found` for `requirements.txt` | Deploy from the repository root; the service source/build folder is `agent-framework/`. |
+    | ZIP deployment builds a container through ACR | Check the `claims-workflow-hosted` service has `codeConfiguration` and `language: python`, with no `docker` or `image` setting. |
+    | ZIP dependency build or startup fails | Check Python 3.13 compatibility, remote package-feed access, and that `main.py`, `workflow.py`, and `requirements.txt` are at the ZIP root. The local Python 3.11 environment is not the ZIP runtime. |
+    | `No policy number found ...` | The statement is not indexed. Complete Challenge 2, or pass `--policy`. |
+    | The first hosted run fails with a permission error | Assign the **Foundry User** role to the hosted agent's identity (see above). |
+    | `Human review is required, but ... non-interactive terminal` | Run in an interactive terminal, or call the hosted agent and answer through the API. |
+    | The Inspector or server does not start | Run it with the `agent-framework/.venv` environment, not the lab environment. |
+    | Package install fails on a restricted network | Pass your mirror: `pip install -r requirements-dev.txt --index-url <mirror>`, and for Docker `--build-arg PIP_INDEX_URL=<mirror>`. |
 
 ## Next step
 
