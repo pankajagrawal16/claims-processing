@@ -61,21 +61,80 @@ output and source control.
 
 ## Architecture at a glance { #architecture }
 
-The workshop combines specialized Foundry agents with grounded retrieval and
-deterministic security controls:
+The workshop combines specialized Foundry agents, a Microsoft Agent Framework
+workflow, grounded retrieval, and deterministic security controls:
 
 ```mermaid
 flowchart LR
-    CLAIM[Accident statement] --> INTAKE[Claims Intake Agent]
-    INTAKE --> DECISION[Claims Intelligence Agent]
-    DECISION --> REVIEW{Human review needed?}
-    REVIEW -- Yes --> HUMAN[Claims reviewer]
+    CLAIM[Accident statement] --> WF
+    subgraph WF [Agent Framework workflow - Challenge 4]
+        direction LR
+        INTAKE[Claims Intake Agent] --> DECISION[Claims Intelligence Agent]
+        DECISION --> REVIEW{Human review needed?}
+        REVIEW -- Yes --> HUMAN[Claims reviewer]
+    end
     REVIEW -- No --> SECURE[Claims Security Action Agent]
     HUMAN --> SECURE
-    SECURE --> ACTIONS[Protected downstream actions]
     SEARCH[Foundry IQ evidence] --> INTAKE
     POLICY[Foundry IQ policies] --> DECISION
-    FIDES[FIDES enforcement] --> SECURE
+    SECURE --> ACTIONS[Protected downstream actions]
+    FIDES[FIDES label enforcement<br/>Challenge 6] -.-> SECURE
+    AGT[Agent Governance Toolkit policy<br/>Challenge 6 alternate] -.-> SECURE
+```
+
+### Agent Framework workflow
+
+[Challenge 4](challenges/challenge-04-agent-framework.md) connects the two Foundry
+agents with an Agent Framework **workflow**. The workflow is a graph: each node does one
+job and each edge says where the result goes next. It reuses `claims-intake-agent` and
+`claims-intelligence-agent` instead of creating replacements.
+
+```mermaid
+flowchart TD
+    A[Claim request] --> P[prepare]
+    P --> B[claims-intake-agent]
+    B --> C[policy_prompt]
+    C --> D[claims-intelligence-agent<br/>policy extraction]
+    D --> E[decision_prompt]
+    E --> F[claims-intelligence-agent<br/>coverage decision]
+    F --> R{route}
+    R -- escalated or low confidence --> H[human_review<br/>pause until answered]
+    R -- otherwise --> Z[auto_finish]
+    H --> Y[Final decision]
+    Z --> Y
+```
+
+The `route` node sends escalated or low-confidence decisions to a human reviewer, and
+the workflow pauses until the reviewer answers. The workflow can run locally or be
+deployed as a Foundry hosted agent that exposes the Responses API.
+
+### Security enforcement
+
+Challenge 6 protects the same two downstream actions on either path:
+
+- `approve_payout` must not run while claimant-written text is in the agent's context.
+- `notify_claimant` must not run while private policyholder data is in the agent's context.
+
+| | [FIDES](challenges/challenge-06.md) | [Agent Governance Toolkit (AGT)](challenges/challenge-06-agt.md) |
+| --- | --- | --- |
+| How it decides | Labels data by trust and sensitivity, and the label travels with the data through the run. | Wraps each action with `govern()`, which evaluates a YAML policy before the action runs. |
+| Where it runs | In Agent Framework middleware, configured with `SecureAgentConfig`. | Around the action tools that the Agent Framework agent calls. |
+| What blocks an action | A sink rejects data above its label limit. | A deny rule matches the context flags the host computes from the labels. |
+| Default | Sinks declare the riskiest data they accept. | `default_action: deny`. |
+
+In the AGT path, the read tools add labels, `context_flags()` turns them into simple
+true or false flags, and the policy in `agt_claims_policy.yaml` decides whether the
+action body runs:
+
+```mermaid
+flowchart LR
+    AGENT[Agent Framework agent] --> READ[Read tools add labels]
+    READ --> FLAGS["context_flags()<br/>untrusted_in_context<br/>private_in_context<br/>labels_missing"]
+    AGENT --> GOV["govern() wrapper"]
+    FLAGS --> GOV
+    YAML["agt_claims_policy.yaml<br/>default deny"] --> GOV
+    GOV -- allow --> SINK[approve_payout or notify_claimant]
+    GOV -- deny --> BLOCK[Action blocked]
 ```
 
 The workshop instructions are built directly from the challenge files in the

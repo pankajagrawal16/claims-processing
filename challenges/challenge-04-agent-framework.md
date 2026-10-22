@@ -317,7 +317,7 @@ what lets the same workflow wait for a reviewer when it runs as a hosted agent i
 Use either **VS Code with Agent Inspector** or the **terminal client script** below.
 Both send requests to the same local Responses API server. VS Code is not required
 for the script path. Unlike Tasks 2-3, which call the graph directly, this task tests
-the HTTP hosting layer used by the deployed container.
+the HTTP hosting layer used by the deployed hosted agent.
 
 #### Start the server (both paths)
 
@@ -386,7 +386,7 @@ the HTTP hosting layer used by the deployed container.
           `function_call_output` with the `call_id`, `previous_response_id`, and
           the same `agent_session_id` so it resumes the right claim.
           The client, not the server terminal, collects the reviewer's answer.
-        - **Hosted agent (Task 5):** the container runs the same `main.py`.
+        - **Hosted agent (Task 5):** the hosted agent runs the same `main.py`.
           Foundry routes requests using the `responses` protocol in `azure.yaml`.
 
         **Local is not deployed:** starting the server creates no Azure resource.
@@ -531,9 +531,6 @@ guides for availability and service prerequisites.
 > - You need the **Foundry Project Manager** role on the Foundry project to create the agent.
 > - Run the deployment commands from the **workshop root**, where `azure.yaml` is.
 >   The service's source directory is `agent-framework/`.
-> - Code ZIP deployment currently supports Python **3.13 or 3.14**, not this lab's local
->   Python 3.11 environment. Test the hosting dependencies and workflow under Python 3.13
->   before using the ZIP example. Do not package the root environment or its lockfile.
 > - Deploying can incur charges. A successful upload does not prove readiness; wait for
 >   the agent version to become active and run the test below.
 
@@ -594,7 +591,9 @@ access and test steps below.
 
         ACR builds a Python 3.11 image from
         [`agent-framework/Dockerfile`](../agent-framework/Dockerfile); no local
-        Docker daemon is required. The Dockerfile installs `requirements.txt`,
+        Docker daemon is required. **An Azure Container Registry (ACR) is
+        required**: `azd deploy` cannot publish the image without one. Creating
+        an ACR incurs Azure charges. The Dockerfile installs `requirements.txt`,
         so check that the **remote builder** can reach its package index.
 
     ##### Deploy with Foundry Toolkit (VS Code)
@@ -611,52 +610,89 @@ access and test steps below.
        See the [Toolkit deployment guide](https://learn.microsoft.com/azure/foundry/how-to/develop/vs-code-agents-workflow-pro-code#deploy-the-hosted-agent)
        if your wizard looks different.
 
-    **Or deploy with Azure Developer CLI (`azd`) from the workshop root.** Install
+    **Or deploy with `azd` from the workshop root.** Install
     [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd)
-    first. Use your existing project's endpoint, subscription, resource group, and
-    region. If you already created the `claims-framework` environment, run
-    `azd env select claims-framework` **instead of** `azd env new claims-framework`.
+    and select your Foundry project's subscription in Azure CLI. Follow your OS
+    commands below. The helper configures `azd` for your existing project
+    without copying secrets from `.env`.
+
+    Already have a `claims-framework` environment? Use
+    `azd env select claims-framework` instead of `azd env new claims-framework`.
 
     === "Bash/zsh"
 
         ```bash
+        source agent-framework/.venv/bin/activate
         azd ext install azure.ai.agents
         azd auth login
         azd env new claims-framework
-        azd env set FOUNDRY_PROJECT_ENDPOINT "<your project endpoint>"
-        azd env set AZURE_SUBSCRIPTION_ID "<your subscription id>"
-        azd env set AZURE_RESOURCE_GROUP "<your resource group>"
-        azd env set AZURE_LOCATION "<your region>"
+        python docs/configure_azd_env.py
         ```
 
-        Review the target environment. If it needs a registry, provision it first
-        with `azd provision`; otherwise skip provisioning. Then deploy:
+        If you already have an ACR in the selected subscription, skip the
+        `az acr create` command. Otherwise, choose a globally unique, lowercase
+        registry name in place of `youruniqueregistryname` and create one
+        (Basic tier is billable). Use its login server as the endpoint:
 
         ```bash
+        az acr create --resource-group "$(azd env get-value AZURE_RESOURCE_GROUP -e claims-framework)" --name youruniqueregistryname --sku Basic
+        azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "$(az acr show --name youruniqueregistryname --query loginServer -o tsv)" -e claims-framework
+        azd deploy claims-workflow-hosted
+        ```
+
+        For an existing ACR, replace `youruniqueregistryname` in the last
+        two commands with its name and run only `azd env set` and `azd deploy`.
+        If deployment reports `[ImageError] Container registry authentication
+        failed`, grant the **Foundry project managed identity** `AcrPull` on
+        that registry, then retry (Azure RBAC can take a few minutes):
+
+        ```bash
+        az role assignment create --assignee-object-id "$(az resource show --ids "$(azd env get-value AZURE_AI_PROJECT_ID -e claims-framework)" --query identity.principalId -o tsv)" --assignee-principal-type ServicePrincipal --role AcrPull --scope "$(az acr show --name youruniqueregistryname --query id -o tsv)"
         azd deploy claims-workflow-hosted
         ```
 
     === "PowerShell"
 
         ```powershell
+        .\agent-framework\.venv\Scripts\Activate.ps1
         azd ext install azure.ai.agents
         azd auth login
         azd env new claims-framework
-        azd env set FOUNDRY_PROJECT_ENDPOINT "<your project endpoint>"
-        azd env set AZURE_SUBSCRIPTION_ID "<your subscription id>"
-        azd env set AZURE_RESOURCE_GROUP "<your resource group>"
-        azd env set AZURE_LOCATION "<your region>"
+        python docs/configure_azd_env.py
         ```
 
-        Review the target environment. If it needs a registry, provision it first
-        with `azd provision`; otherwise skip provisioning. Then deploy:
+        If you already have an ACR in the selected subscription, skip the
+        `az acr create` command. Otherwise, choose a globally unique, lowercase
+        registry name in place of `youruniqueregistryname` and create one
+        (Basic tier is billable). Use its login server as the endpoint:
 
         ```powershell
+        az acr create --resource-group "$(azd env get-value AZURE_RESOURCE_GROUP -e claims-framework)" --name youruniqueregistryname --sku Basic
+        azd env set AZURE_CONTAINER_REGISTRY_ENDPOINT "$(az acr show --name youruniqueregistryname --query loginServer -o tsv)" -e claims-framework
         azd deploy claims-workflow-hosted
         ```
 
-    Expect an image build and push. Continue to **Give the agent access to your
-    project** below; do not follow the Code ZIP tab.
+        For an existing ACR, replace `youruniqueregistryname` in the last
+        two commands with its name and run only `azd env set` and `azd deploy`.
+        If deployment reports `[ImageError] Container registry authentication
+        failed`, grant the **Foundry project managed identity** `AcrPull` on
+        that registry, then retry (Azure RBAC can take a few minutes):
+
+        ```powershell
+        az role assignment create --assignee-object-id "$(az resource show --ids "$(azd env get-value AZURE_AI_PROJECT_ID -e claims-framework)" --query identity.principalId -o tsv)" --assignee-principal-type ServicePrincipal --role AcrPull --scope "$(az acr show --name youruniqueregistryname --query id -o tsv)"
+        azd deploy claims-workflow-hosted
+        ```
+
+    Expect an image build and push. When the version is active, continue to
+    **Give the agent access to your project** below.
+
+    ??? question "🛠️ Container troubleshooting"
+
+        | Symptom | What to check |
+        |---|---|
+        | Container publish cannot determine the registry endpoint | Create or select an ACR, then set `AZURE_CONTAINER_REGISTRY_ENDPOINT` to its `loginServer` using the commands above. |
+        | Deployment fails with `[ImageError] Container registry authentication failed` | Grant the Foundry **project managed identity** `AcrPull` on the ACR (commands above), wait for RBAC propagation, and redeploy. |
+        | Image build fails installing packages on a restricted network | Pass your mirror to the build: `--build-arg PIP_INDEX_URL=<mirror>`. |
 
 === "Code ZIP (Python 3.13)"
 
@@ -742,43 +778,49 @@ access and test steps below.
        See the [Toolkit deployment guide](https://learn.microsoft.com/azure/foundry/how-to/develop/vs-code-agents-workflow-pro-code#deploy-the-hosted-agent)
        if your wizard looks different.
 
-    **Or deploy with Azure Developer CLI (`azd`) from the workshop root.** Install
+    **Or deploy with `azd` from the workshop root.** Install
     [Azure Developer CLI](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd)
-    and use a current agents extension with `codeConfiguration` support. Use your
-    existing project's details. If `claims-framework` already exists, run
-    `azd env select claims-framework` **instead of** `azd env new claims-framework`.
+    and select your Foundry project's subscription in Azure CLI. Follow your OS
+    commands below; ZIP deployment needs a current agents extension with
+    `codeConfiguration` support. The helper configures `azd` for your existing
+    project without copying secrets from `.env`.
+
+    Already have a `claims-framework` environment? Use
+    `azd env select claims-framework` instead of `azd env new claims-framework`.
 
     === "Bash/zsh"
 
         ```bash
+        source agent-framework/.venv/bin/activate
         azd ext install azure.ai.agents
         azd auth login
         azd env new claims-framework
-        azd env set FOUNDRY_PROJECT_ENDPOINT "<your project endpoint>"
-        azd env set AZURE_SUBSCRIPTION_ID "<your subscription id>"
-        azd env set AZURE_RESOURCE_GROUP "<your resource group>"
-        azd env set AZURE_LOCATION "<your region>"
+        python docs/configure_azd_env.py
         azd deploy claims-workflow-hosted
         ```
 
     === "PowerShell"
 
         ```powershell
+        .\agent-framework\.venv\Scripts\Activate.ps1
         azd ext install azure.ai.agents
         azd auth login
         azd env new claims-framework
-        azd env set FOUNDRY_PROJECT_ENDPOINT "<your project endpoint>"
-        azd env set AZURE_SUBSCRIPTION_ID "<your subscription id>"
-        azd env set AZURE_RESOURCE_GROUP "<your resource group>"
-        azd env set AZURE_LOCATION "<your region>"
+        python docs/configure_azd_env.py
         azd deploy claims-workflow-hosted
         ```
 
     No ACR or infrastructure provisioning is needed when deploying ZIP to
     your existing project. Expect source packaging and a remote dependency
-    build; if the output says `Packaging container`, recheck the service's
-    `codeConfiguration`. Continue to **Give the agent access to your project**
-    below; do not follow the Container tab.
+    build. When the version is active, continue to **Give the agent access to
+    your project** below.
+
+    ??? question "🛠️ Code ZIP troubleshooting"
+
+        | Symptom | What to check |
+        |---|---|
+        | The output says `Packaging container` or builds through ACR | Check the `claims-workflow-hosted` service has `codeConfiguration` and `language: python`, with no `docker` or `image` setting. |
+        | Dependency build or startup fails | Check Python 3.13 compatibility, remote package-feed access, and that `main.py`, `workflow.py`, and `requirements.txt` are at the ZIP root. The local Python 3.11 environment is not the ZIP runtime. |
 
 Both configurations retain Responses version `2.0.0` and reference the
 existing Foundry project without replacing its prompt agents or models.
@@ -803,13 +845,60 @@ of `ClaimProcessingWorkflow`, not a second agent.
 
 #### Give the agent access to your project
 
-The hosted agent runs with its own identity. By default it can run models through the project,
-but it may need an explicit role before it can call the two other agents in the project.
-Do this if the first run fails with a permission error.
+The **hosted agent identity** calls the existing intake and intelligence agents.
+If those calls fail with a permissions error, grant **Foundry User** to the
+hosted agent identity at the **project** scope. An HTTP 404 saying an agent
+*version* was not found is **not** a permissions error; redeploy the latest
+workflow code instead.
 
 1. In the Azure portal, open your Foundry project, then **Access control (IAM)**.
 2. Add a role assignment: role **Foundry User** (previously named *Azure AI User*). When
-   selecting members, search for the hosted agent's name, `ClaimProcessingWorkflow`.
+   selecting members, search for the hosted agent's identity,
+   `ClaimProcessingWorkflow`. You may need to wait a few minutes for RBAC to apply.
+
+Alternatively, for an `azd` deployment, get the exact hosted agent principal
+from `azd ai agent show` and assign the role without guessing an identity:
+
+=== "Bash/zsh"
+
+    ```bash
+    project_id="$(azd env get-value AZURE_AI_PROJECT_ID -e claims-framework)"
+    agent_principal="$(azd ai agent show claims-workflow-hosted -o json | python -c "import json,sys; print(json.load(sys.stdin)['instance_identity']['principal_id'])")"
+    az role assignment create --assignee-object-id "$agent_principal" --assignee-principal-type ServicePrincipal --role "Foundry User" --scope "$project_id"
+    ```
+
+=== "PowerShell"
+
+    ```powershell
+    $projectId = azd env get-value AZURE_AI_PROJECT_ID -e claims-framework
+    $agentPrincipal = azd ai agent show claims-workflow-hosted -o json | python -c "import json,sys; print(json.load(sys.stdin)['instance_identity']['principal_id'])"
+    az role assignment create --assignee-object-id $agentPrincipal --assignee-principal-type ServicePrincipal --role "Foundry User" --scope $projectId
+    ```
+
+If model inference also fails because the **project managed identity** has
+insufficient access to its parent Foundry **account**, grant that identity
+**Foundry User** at the account scope (usually set up when the project is created).
+This is separate from the hosted agent's project role:
+
+=== "Bash/zsh"
+
+    ```bash
+    project_id="$(azd env get-value AZURE_AI_PROJECT_ID -e claims-framework)"
+    project_principal="$(az resource show --ids "$project_id" --query identity.principalId -o tsv)"
+    az role assignment create --assignee-object-id "$project_principal" --assignee-principal-type ServicePrincipal --role "Foundry User" --scope "${project_id%/projects/*}"
+    ```
+
+=== "PowerShell"
+
+    ```powershell
+    $projectId = azd env get-value AZURE_AI_PROJECT_ID -e claims-framework
+    $projectPrincipal = az resource show --ids $projectId --query identity.principalId -o tsv
+    az role assignment create --assignee-object-id $projectPrincipal --assignee-principal-type ServicePrincipal --role "Foundry User" --scope ($projectId -replace '/projects/[^/]+$', '')
+    ```
+
+Assign roles only if missing; your Azure identity needs permission to create role
+assignments. If you deploy a new agent identity, repeat the hosted-agent role
+assignment for that identity.
 
 ??? tip "💡 Why did I run this step?"
 
@@ -839,15 +928,21 @@ python invoke-hosted-claims-workflow.py --agent-name ClaimProcessingWorkflow --i
 > in `--agent-name` with that exact name. Use the name shown in Foundry (the service's
 > `name:` value), not the `services:` key used by azd.
 
-You can also open the agent in the Foundry Toolkit or Foundry portal playground and send:
+To inspect a claim in the Foundry Toolkit or portal playground, start a **new
+conversation** and send:
 
 ```text
 --indexed-claim crash3 --policy COMP-AUTO-001
 ```
 
-If review is requested, the response contains a pending review. Answering it continues the
-same run. With `azd`, `azd ai agent invoke` sends a message, and `azd ai agent monitor` streams
-the logs.
+If review is requested, the playground shows a pending function call. **Do not
+send `approve` as another chat message**: that is new workflow input, not a
+review response, and fails input validation. Use the terminal client above in
+an interactive terminal to complete review; it sends the required
+`function_call_output` with the original call and session IDs. Start a new
+playground conversation for another claim rather than reusing one awaiting
+review. With `azd`, `azd ai agent invoke` sends a message, and
+`azd ai agent monitor` streams the logs.
 
 To test the same script against a local server instead, start `python main.py` as in Task 4
 and add `--local`.
@@ -904,13 +999,14 @@ the `PENDING_HUMAN_REVIEW` result; answering it resumes the workflow.
     |---|---|
     | `Foundry hosted requests require a trusted user ID and call ID` | The deployed agent uses an old protocol version. Check that `azure.yaml` declares `responses` `2.0.0`, then redeploy. |
     | Build fails with `file not found` for `requirements.txt` | Deploy from the repository root; the service source/build folder is `agent-framework/`. |
-    | ZIP deployment builds a container through ACR | Check the `claims-workflow-hosted` service has `codeConfiguration` and `language: python`, with no `docker` or `image` setting. |
-    | ZIP dependency build or startup fails | Check Python 3.13 compatibility, remote package-feed access, and that `main.py`, `workflow.py`, and `requirements.txt` are at the ZIP root. The local Python 3.11 environment is not the ZIP runtime. |
+    | Hosted run says `Agent ... with version ... not found` | The hosted agent's version was passed to an existing prompt agent. Redeploy the updated workflow code; do not fix this 404 with a role assignment. |
+    | Playground says `Native workflow input validation failed` on the first claim | Redeploy the current code. Older versions rejected the playground's default options (such as `tools: []`), so `main.py` now ignores caller-supplied model options; the Foundry agents define their own. |
+    | Playground says `Native workflow input validation failed` after review | A plain-text reply such as `approve` cannot satisfy the pending function call. Complete review with the interactive terminal client, or start a new playground conversation for a new claim. |
     | `No policy number found ...` | The statement is not indexed. Complete Challenge 2, or pass `--policy`. |
     | The first hosted run fails with a permission error | Assign the **Foundry User** role to the hosted agent's identity (see above). |
     | `Human review is required, but ... non-interactive terminal` | Run in an interactive terminal, or call the hosted agent and answer through the API. |
     | The Inspector or server does not start | Run it with the `agent-framework/.venv` environment, not the lab environment. |
-    | Package install fails on a restricted network | Pass your mirror: `pip install -r requirements-dev.txt --index-url <mirror>`, and for Docker `--build-arg PIP_INDEX_URL=<mirror>`. |
+    | Package install fails on a restricted network | Pass your mirror: `pip install -r requirements-dev.txt --index-url <mirror>`. |
 
 ## Next step
 

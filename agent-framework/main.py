@@ -23,6 +23,11 @@ def create_workflow(_request: HostedResponseRequest):
     return build_workflow(credential=credential)
 
 
+def ignore_caller_options(_request: HostedResponseRequest, _options: dict) -> dict:
+    # Playgrounds send options such as tools=[]; the hosted agents are configured in Foundry.
+    return {}
+
+
 async def parse_response(request: HostedResponseRequest) -> WorkflowTurn[str]:
     items = await request.get_input_items()
     if any(item.get("type") == "function_call_output" for item in items):
@@ -34,6 +39,7 @@ if __name__ == "__main__":
     ResponsesHostServer(
         workflow=create_workflow,
         parse_response=parse_response,
+        prepare_options=ignore_caller_options,
         checkpoint_store_provider=CheckpointStoreProvider(),
     ).run(port=int(os.getenv("PORT", "8088")))
 

@@ -181,7 +181,8 @@ def _get_knowledge_connection_id(
         raise RuntimeError(
             f"Foundry RemoteTool connection '{connection.name}' targets {connection.target}, "
             f"but the agent expects {expected_url}. Update the Foundry project's RemoteTool "
-            "connection target (see Challenge 2 troubleshooting)."
+            "connection target by running 'python fix_crash_statements_connection.py' "
+            "from the docs directory, then rerun the intake agent."
         )
     return connection.id
 

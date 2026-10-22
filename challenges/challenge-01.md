@@ -19,6 +19,15 @@ Before you start the tasks, sign in to the event console at
 credentials. Your event lead provides a username and password for the console.
 Use them only during the event window your event lead set.
 
+If you don't have the console username and password yet, open the
+[Intelligent Claims Processing event page](https://app-mhfb-fc1fed64d4.azurewebsites.net/intelligent-claims-processing)
+and sign in with the access code provided by the organizers. This gives you the
+credentials for the EMEA hack portal.
+
+The event page asks for the shared hack access code:
+
+![Intelligent Claims Processing event page asking for the hack access code](images/event-access-page.png)
+
 1. Open [emea.microhack.cloud](https://emea.microhack.cloud/).
 2. Sign in with your username and password. 
 3. On the home screen, open **Credentials**. You see only your own Azure lab

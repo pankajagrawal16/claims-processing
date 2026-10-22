@@ -335,10 +335,11 @@ python claims-intake-agent.py ../data/claims/crash1/raw/statements/crash1_front.
     The knowledge base MCP endpoint is versioned. Foundry uses **both** the agent's MCP tool URL and the
     project's `crash-statements-kb` RemoteTool connection. The intake agent can refresh its tool URL when you rerun
     it, but it cannot update the project connection. A stale connection URL can therefore cause this
-    error even when your `.env` and the agent both use `2026-08-01-preview`.
+    error even when the agent uses the default `2026-08-01-preview`.
 
-    1. Check `FOUNDRY_IQ_MCP_API_VERSION` in your `.env` (or your shell). For this lab, use
-       `2026-08-01-preview`; remove an older override.
+    1. No API-version setting is required: the code defaults to `2026-08-01-preview`.
+       If you previously set `FOUNDRY_IQ_MCP_API_VERSION` in `.env` or your shell,
+       remove any older override before repairing the connection.
     2. In the Foundry portal, open **Manage** > **Project details** > **Connected resources**. Find the
        `crash-statements-kb` RemoteTool connection and check its target URL. It must end with
        `/knowledgebases/crash-statements-kb/mcp?api-version=2026-08-01-preview`. A stale target such as

@@ -34,6 +34,7 @@ from agent_framework import (
     handler,
     response_handler,
 )
+from agent_framework.exceptions import ChatClientException
 from agent_framework.foundry import FoundryAgent
 from agent_framework.openai import OpenAIChatOptions
 from azure.identity.aio import DefaultAzureCredential
@@ -111,6 +112,9 @@ class CompletingFoundryAgent(FoundryAgent):
             except TimeoutError:
                 logger.error("Foundry agent %s timed out before completing its response.", self.name)
                 raise
+            except ChatClientException:
+                logger.exception("Foundry agent %s failed during execution.", self.name)
+                raise
             if not response.text and not response.user_input_requests:
                 logger.error("Foundry agent %s completed without a response.", self.name)
                 raise RuntimeError(f"Foundry agent {self.name} completed without a response.")
@@ -140,6 +144,8 @@ def connect(agent_name: str, step_id: str, credential) -> FoundryAgent:
     return CompletingFoundryAgent(
         project_endpoint=endpoint,
         agent_name=agent_name,
+        agent_version="",  # Ignore the hosted workflow's FOUNDRY_AGENT_VERSION.
+        allow_preview=True,
         credential=credential,
         name=step_id,  # the intelligence agent appears twice and step names must be unique
         default_options={"store": False},

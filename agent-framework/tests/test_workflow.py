@@ -34,7 +34,11 @@ class FakeAgent(RawAgent):
     """Replies by task keyword and records every prompt it receives."""
 
     def __init__(self, name: str, replies: dict[str, str], prompts: list[tuple[str, str]]) -> None:
-        super().__init__(client=SimpleNamespace(STORES_BY_DEFAULT=True), name=name, default_options={"store": False})
+        super().__init__(
+            client=SimpleNamespace(STORES_BY_DEFAULT=True),
+            name=name,
+            default_options={"store": False},
+        )
         self.replies, self.prompts = replies, prompts
 
     def run(self, messages=None, *, stream=False, session=None, **kwargs):
@@ -84,6 +88,24 @@ def build(monkeypatch):
 
 def final(result) -> dict:
     return json.loads(result.get_outputs()[-1][0].text)
+
+
+def test_connect_uses_referenced_agent_not_hosted_version(monkeypatch):
+    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://example.services.ai.azure.com/api/projects/lab")
+    monkeypatch.setenv("FOUNDRY_AGENT_VERSION", "4")
+    options = {}
+
+    def fake_agent(**kwargs):
+        options.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(workflow, "CompletingFoundryAgent", fake_agent)
+    workflow.connect("claims-intake-agent", "intake_agent", object())
+
+    assert options["agent_name"] == "claims-intake-agent"
+    assert options["agent_version"] == ""
+    assert options["allow_preview"] is True
+    assert options["default_options"] == {"store": False}
 
 
 @pytest.mark.asyncio
@@ -247,10 +269,17 @@ async def test_hosted_review_and_new_claim_have_separate_state(build, monkeypatc
     host = hosting.ResponsesHostServer(
         workflow=hosting.create_workflow,
         parse_response=hosting.parse_response,
+        prepare_options=hosting.ignore_caller_options,
         checkpoint_store_provider=hosting.CheckpointStoreProvider(),
     )
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=host), base_url="http://testserver") as client:
-        first = (await client.post("/responses", json={"input": "--indexed-claim crash3"})).json()
+        first = (await client.post("/responses", json={
+            "input": "--indexed-claim crash3",
+            "parallel_tool_calls": False,
+            "tools": [],
+            "temperature": 1,
+            "tool_choice": "auto",
+        })).json()
         assert first["status"] == "completed", first.get("error")
         call = next(item for item in first["output"] if item["type"] == "function_call")
         assert json.loads(call["arguments"])["request"]["result"]["status"] == "PENDING_HUMAN_REVIEW"

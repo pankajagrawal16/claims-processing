@@ -161,10 +161,11 @@ connection.
 
     Foundry uses the **project connection's** target URL to reach the knowledge base.
     A stale `policies-kb` connection (for example, `api-version=2026-04-01`) can cause
-    this error even when the agent and `.env` use `2026-08-01-preview`.
+    this error even when the agent uses the default `2026-08-01-preview`.
 
-    1. Check `FOUNDRY_IQ_MCP_API_VERSION` in `.env` and your shell. For this lab,
-       use `2026-08-01-preview`; remove an older override.
+    1. No API-version setting is required: the code defaults to `2026-08-01-preview`.
+       If you previously set `FOUNDRY_IQ_MCP_API_VERSION` in `.env` or your shell,
+       remove any older override before repairing the connection.
     2. From the `docs` directory, sign in with `az login` if needed and run:
 
        ```text

@@ -53,7 +53,7 @@ Run these commands from the workshop root:
     ```bash
     python3.11 -m venv .venv-agt
     source .venv-agt/bin/activate
-    python -m pip install "agent-governance-toolkit[full]" "agent-framework-core==1.13.0" pytest
+    python -m pip install "agent-governance-toolkit[full]" "agent-framework-core==1.13.0" "agent-framework-foundry==1.10.4" pytest
     ```
 
 === "PowerShell"
@@ -61,10 +61,14 @@ Run these commands from the workshop root:
     ```powershell
     py -3.11 -m venv .venv-agt
     .\.venv-agt\Scripts\Activate.ps1
-    python -m pip install "agent-governance-toolkit[full]" "agent-framework-core==1.13.0" pytest
+    python -m pip install "agent-governance-toolkit[full]" "agent-framework-core==1.13.0" "agent-framework-foundry==1.10.4" pytest
     ```
 
 A `DeprecationWarning` about `agentmesh-platform` can appear. It doesn't affect this lab.
+`agent-framework-foundry` is needed only for the optional live step in Task 5; without it,
+`--live` fails with `ModuleNotFoundError: ... agent-framework-foundry is required`. If you
+already created the environment, install it with
+`python -m pip install "agent-framework-foundry==1.10.4"` and run the live step again.
 
 ### Task 2: Read the policy and the agent
 
@@ -149,9 +153,23 @@ This step replaces the scripted model with a Foundry model. It needs the Foundry
 endpoint in `FOUNDRY_PROJECT_ENDPOINT`, an optional `FOUNDRY_MODEL`, and `az login` with a
 lab account that can use the project. It uses your model quota.
 
-```bash
-python claims_agt_agent.py --scenario inject-payout --live
-```
+Run it from the `docs` folder with `.venv-agt` active. The script reads the endpoint from the
+environment and does not load `.env`, so set it from your workshop-root `.env` first. These
+commands copy only that one value, not the Search or Storage secrets:
+
+=== "Bash/zsh"
+
+    ```bash
+    export FOUNDRY_PROJECT_ENDPOINT="$(grep '^FOUNDRY_PROJECT_ENDPOINT=' ../.env | cut -d= -f2-)"
+    python claims_agt_agent.py --scenario inject-payout --live
+    ```
+
+=== "PowerShell"
+
+    ```powershell
+    $env:FOUNDRY_PROJECT_ENDPOINT = (Select-String -Path ..\.env -Pattern '^FOUNDRY_PROJECT_ENDPOINT=').Line.Split('=', 2)[1]
+    python claims_agt_agent.py --scenario inject-payout --live
+    ```
 
 With a live model, the outcomes come from the model's own tool choices. The governance checks
 are the same. If the model does not call the sinks, the sink outcomes list is empty.

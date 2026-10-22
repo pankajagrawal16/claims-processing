@@ -94,15 +94,20 @@ This is distributed tracing, not just the console's step messages.
 
 All setup commands start in the **repository root**.
 
-1. In the Foundry portal, open your project, select **Agents** in the left navigation, and open
-   the **Traces** tab.
+1. Sign in to the [Foundry portal](https://ai.azure.com) and make sure the **New Foundry**
+   toggle is on. Open your project, select **Agents** in the left navigation, and select
+   **Traces** at the top of the page. This tab is still rolling out: if you don't see it, open
+   any one of your agents (for example `claims-intake-agent`) and select **Traces** there.
 2. Select **Connect**. Choose an existing Application Insights resource, or select
    **Create new** and complete the wizard.
    If you do not see **Connect**, open **Manage** > **Project details** > **Connected resources**
    > **Add connection**, and choose **Application Insights**.
 3. In the Azure portal, open that Application Insights resource, select **Access control (IAM)**,
    and give yourself **Log Analytics Reader**.
-4. Install the optional exporter and activate the workshop environment:
+4. Install the optional exporter and activate the workshop environment. Run these in a
+    terminal **at the repository root** (the folder that contains `pyproject.toml`,
+    `azure.yaml`, and `.env`), not inside `docs/` or `agent-framework/`. This is the same
+    root `.venv` you used in earlier challenges; `uv sync` adds the tracing packages to it:
 
     === "Bash/zsh"
 
@@ -119,7 +124,7 @@ All setup commands start in the **repository root**.
         ```
 
     Do not use the separate `agent-framework/.venv` hosting environment for these CLI
-    steps.
+    steps. Stay in this activated terminal for the remaining steps; step 6 changes into `docs`.
 5. Open the connected **Application Insights** resource in the Azure portal and copy its
    **Connection String** from **Overview**. Add it to the workshop-root `.env`:
 
@@ -143,7 +148,8 @@ All setup commands start in the **repository root**.
     Without `--trace`, the runner keeps the Challenge 4 behavior and does not configure
     an exporter. A missing connection string or tracing dependency produces an explicit
     setup error rather than silently running without tracing.
-7. Wait a few minutes, then open **Agents** > **Traces** and search for the printed trace ID.
+7. Wait a few minutes, then open **Agents** > **Traces** and search for the printed trace ID
+   (or use the agent's **Traces** tab or the Application Insights search described below).
    Expand `claims.process`, the workflow span, and its executor/agent spans.
    Client-side spans also appear in the connected **Application Insights > Transaction
    search** under service/cloud role `claims-framework-workflow`; use this view if the
@@ -153,6 +159,32 @@ All setup commands start in the **repository root**.
    capture. Remote prompt-agent tool/retrieval spans can still be separate server-side
    traces: automatic client instrumentation does not guarantee that every service
    propagates trace context. Correlate those calls by time and agent name when necessary.
+
+??? question "Can't find the Traces tab?"
+
+    The project-level **Traces** tab under **Agents** is still rolling out, so it may
+    not be in your portal yet. Work through these in order:
+
+    1. Turn the **New Foundry** toggle on. The classic portal has no **Traces** page.
+    2. Open one of your agents (for example `claims-intake-agent`), select its **Traces**
+       tab, and select **Connect** to create or connect Application Insights from there.
+       The connection applies to the whole project.
+    3. Or connect it from **Manage** > **Project details** > **Connected resources** >
+       **Add connection** > **Application Insights**, then refresh.
+    4. Skip the Foundry view and read the same spans in Azure: open the connected
+       Application Insights resource, select **Investigate** > **Transaction search**,
+       and search for the printed **Trace ID**. Or open **Logs** and run:
+
+        ```kusto
+        union requests, dependencies, traces, exceptions
+        | where operation_Id == "<paste the Trace ID>"
+        | project timestamp, itemType, name, message, duration, success, cloud_RoleName
+        | order by timestamp asc
+        ```
+
+    The Trace ID is the `operation_Id`, so this shows the full tree of `claims.process`,
+    workflow, executor, and agent spans. You need **Log Analytics Reader** on the resource
+    (step 3). Use this view whenever a task below says to open **Traces**.
 
 ??? tip "💡 Why did I run this step?"
 
@@ -209,6 +241,7 @@ commands from the repository root, where `azure.yaml` is:
     azd auth login
     azd env select claims-framework
     SERVICE="claims-workflow-hosted"
+    AGENT="ClaimProcessingWorkflow"
     azd ai agent show "$SERVICE" --output json
     ```
 
@@ -218,15 +251,21 @@ commands from the repository root, where `azure.yaml` is:
     azd auth login
     azd env select claims-framework
     $SERVICE = "claims-workflow-hosted"
+    $AGENT = "ClaimProcessingWorkflow"
     azd ai agent show $SERVICE --output json
     ```
 
 Use the environment created in Challenge 4; replace `claims-framework` if you named it
-differently. `SERVICE` is the **key under `services:` in `azure.yaml`**, not the
-agent's `name:`. If you renamed that key (for example, to `claim-intake-zip`), set
-`SERVICE="claim-intake-zip"` instead. The deployed agent's `name:` in this lab is
-`ClaimProcessingWorkflow`. In PowerShell, use `$SERVICE="claims-workflow-hosted"`; the
-remaining commands work with the same variable.
+differently. Two different names are used, so set both variables:
+
+* `SERVICE` is the **key under `services:` in `azure.yaml`**. `azd deploy`,
+  `azd ai agent show`, and `azd ai agent monitor` use it. If you renamed that key
+  (for example, to `claim-intake-zip`), set `SERVICE` to that key instead.
+* `AGENT` is the Foundry **agent name**, the service's `name:` value
+  (`ClaimProcessingWorkflow` in this lab). `azd ai agent sessions list --agent-name`
+  uses it; passing the service key there returns a 404.
+
+The remaining commands use these same variables in the same terminal.
 
 Check that the project, agent name, and version are the intended deployment. If you
 deployed only through the Toolkit and do not have an azd environment, keep using the
@@ -304,7 +343,9 @@ when answering the review.
 
 **4. Find the hosted traces and distinguish them from the local CLI trace.**
 
-After ingestion (typically a few minutes), open **Foundry > Agents > Traces**. Filter
+After ingestion (typically a few minutes), open **Foundry > Agents > Traces** (or the
+`ClaimProcessingWorkflow` agent's **Traces** tab, or the Application Insights fallback in
+Task 1). Filter
 by `ClaimProcessingWorkflow`, the active version, and the test time recorded above.
 Open a request and copy its **Trace ID** or **Response ID** for subsequent searches.
 The invocation script prints the decision, not the local CLI's `Trace ID` line.
@@ -372,7 +413,7 @@ timestamps match your test:
 === "Bash/zsh"
 
     ```bash
-    azd ai agent sessions list --agent-name "$SERVICE" --output table
+    azd ai agent sessions list --agent-name "$AGENT" --output table
     SESSION_ID="<session-id-from-the-list>"
     azd ai agent monitor "$SERVICE" --session-id "$SESSION_ID" --tail 100
     azd ai agent monitor "$SERVICE" --session-id "$SESSION_ID" --type system --tail 100
@@ -381,7 +422,7 @@ timestamps match your test:
 === "PowerShell"
 
     ```powershell
-    azd ai agent sessions list --agent-name $SERVICE --output table
+    azd ai agent sessions list --agent-name $AGENT --output table
     $SESSION_ID = "<session-id-from-the-list>"
     azd ai agent monitor $SERVICE --session-id $SESSION_ID --tail 100
     azd ai agent monitor $SERVICE --session-id $SESSION_ID --type system --tail 100
@@ -710,10 +751,11 @@ resource just for this challenge, delete it as well.
 
     | Symptom | What to check |
     |---|---|
+    | I can't find a project-level **Traces** tab | It is still rolling out. Turn on the **New Foundry** toggle, open one of your agents and use its **Traces** tab to connect Application Insights, or search the connected Application Insights **Transaction search** or **Logs** by Trace ID (see Task 1). |
     | No traces in **Traces** | Application Insights is not connected, there was no recent traffic, or ingestion is delayed. Connect it, run a claim, and refresh after a few minutes. |
     | No local workflow root span | Use the workshop environment with `uv sync --extra tracing`, set `APPLICATIONINSIGHTS_CONNECTION_STRING`, and run with `--trace`. Check exporter errors, outbound connectivity, and the connected Application Insights resource's Transaction search using the printed trace ID. |
     | Hosted decisions succeed but workflow spans are missing | Check Application Insights is connected to the hosted agent's project, confirm the active version after redeploying, and inspect that version's session logs for telemetry/export errors. The local `.env` and CLI `--trace` flag do not configure the hosted process. |
-    | `azd ai agent monitor` has no saved session | The Python invocation client does not persist session state to azd. Use `sessions list --agent-name "$SERVICE"` and pass the matching session explicitly with `--session-id`. |
+    | `azd ai agent monitor` has no saved session | The Python invocation client does not persist session state to azd. Use `sessions list --agent-name "$AGENT"` (the agent name, not the service key) and pass the matching session explicitly with `--session-id`. |
     | Trace exists but prompts/responses are absent | This is the CLI default. Only for synthetic lab data, add `--trace-content`. This does not change content recording on remote services. |
     | Authorization error when viewing traces | Add **Log Analytics Reader** on the Application Insights resource. If its tables are protected, also add **Privileged Monitoring Data Reader**. |
     | `ResourceNotFoundError ... evaluator ... not found` | Run `python claims-evaluation.py --create-rubric` first, or rerun with `--create-rubric --run`. |

@@ -55,40 +55,51 @@ If the intelligence agent escalates or its confidence is below the threshold, en
 
 Return from `docs/` to the **workshop folder**
 the repository root with `cd ..`.
-Choose one package method in
-[Challenge 4, Task 5](../../challenges/challenge-04-agent-framework.md#task-5-deploy-the-workflow-as-a-hosted-agent):
+Choose **one** package method in
+[Challenge 4, Task 5](../../challenges/challenge-04-agent-framework.md#task-5-deploy-the-workflow-as-a-hosted-agent)
+and follow only its tab. The tab contains the exact Bash/zsh and PowerShell commands.
 
-* **Container:** keep `azure.yaml` unchanged; ACR remotely builds the supplied Python 3.11 Dockerfile.
-* **Code ZIP:** use Task 5's `codeConfiguration` service example and review
-  `agent-framework/.agentignore`. Foundry builds the uploaded source using Python 3.13;
-  verify compatibility first. No Dockerfile or ACR is needed for this path.
+=== "Container"
 
-Then choose one deployment tool.
+    Keep `azure.yaml` unchanged; ACR remotely builds the supplied Python 3.11 Dockerfile.
+    An Azure Container Registry is required (billable).
 
-**Foundry Toolkit:** run **Foundry Toolkit: Deploy Hosted Agent** from the Command Palette and
-follow the prompts for your existing Foundry project. Select **Container**, or **Code**
-with **Remote** package mode and Python 3.13, to match the chosen service configuration.
-In both cases, the source directory is `agent-framework/`.
+    * **Foundry Toolkit:** run **Foundry Toolkit: Deploy Hosted Agent**, select your existing
+      Foundry project, and choose **Container**. The source directory is `agent-framework/`.
+    * **Azure Developer CLI:** select your Foundry project's subscription (`az account set`),
+      activate the `agent-framework` environment, then run `azd ext install azure.ai.agents`,
+      `azd auth login`, `azd env new claims-framework`, and `python docs/configure_azd_env.py`.
+      The helper sets the project ID, subscription, resource group, region, and endpoint in
+      `azd`; it does **not** copy secrets from `.env`.
+    * Create or select an ACR, set `AZURE_CONTAINER_REGISTRY_ENDPOINT` to its `loginServer`,
+      then run `azd deploy claims-workflow-hosted`. If the deploy reports an image
+      authentication error, grant the Foundry project's managed identity `AcrPull` on the ACR.
+      Use the commands in the
+      [Container tab](../../challenges/challenge-04-agent-framework.md#choose-the-package-container-or-code-zip).
 
-**Azure Developer CLI:**
+=== "Code ZIP"
 
-```bash
-azd ext install azure.ai.agents
-azd auth login
-azd env new claims-framework
-azd env set FOUNDRY_PROJECT_ENDPOINT "<your project endpoint>"
-azd env set AZURE_SUBSCRIPTION_ID "<your subscription id>"
-azd env set AZURE_RESOURCE_GROUP "<your resource group>"
-azd env set AZURE_LOCATION "<your region>"
-azd deploy claims-workflow-hosted
-```
+    Use Task 5's `codeConfiguration` service example and review `agent-framework/.agentignore`.
+    Foundry builds the uploaded source using Python 3.13; verify compatibility first.
+    No Dockerfile or ACR is needed for this path.
 
-For the container path, run `azd provision` before `azd deploy` if the environment still
-needs supporting infrastructure such as ACR. The ZIP path uses the existing Foundry project
-without an ACR. Wait for the new agent version to become active before invoking it.
+    * **Foundry Toolkit:** run **Foundry Toolkit: Deploy Hosted Agent**, select your existing
+      Foundry project, and choose **Code** with **Remote** package mode and Python 3.13.
+      The source directory is `agent-framework/`.
+    * **Azure Developer CLI:** select your Foundry project's subscription (`az account set`),
+      activate the `agent-framework` environment, then run `azd ext install azure.ai.agents`,
+      `azd auth login`, `azd env new claims-framework`, `python docs/configure_azd_env.py`, and
+      `azd deploy claims-workflow-hosted`. The helper does **not** copy secrets from `.env`.
 
-If the first run fails with a permission error, assign the **Foundry User** role on the
-Foundry project to the hosted agent `ClaimProcessingWorkflow`.
+Wait for the new agent version to become active before invoking it.
+
+If an agent-to-agent call fails with a permissions error, assign **Foundry User**
+on the project to the **hosted agent identity**. If the project's managed
+identity lacks model inference access, grant it **Foundry User** on the parent
+Foundry account. Follow the portal steps or OS-specific commands in
+[Give the agent access to your project](../../challenges/challenge-04-agent-framework.md#give-the-agent-access-to-your-project).
+An `Agent ... with version ... not found` error is a version mismatch, not
+an RBAC failure; redeploy the updated workflow code.
 
 Then call the hosted agent with the same inputs:
 
