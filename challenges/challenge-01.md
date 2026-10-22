@@ -109,11 +109,7 @@ These commands are the same in PowerShell. If GitHub asks you to sign in, use th
 
 ### 3. Create the development environment
 
-**Option A (Codespace):** open [pankajagrawal16/claims-processing](https://github.com/pankajagrawal16/claims-processing) while signed in to your own GitHub account, select **Code**, then open the **Codespaces** tab. Select the `...` menu and choose **New with options**.
-
-![Create a GitHub Codespace with options](images/github-codespaces.png)
-
-For **Dev container configuration**, select **Claims Hack**, then select **Create codespace**.
+**Option A (Codespace):** open [pankajagrawal16/claims-processing](https://github.com/pankajagrawal16/claims-processing) while signed in to your own GitHub account, select **Code**, then open the **Codespaces** tab and select the `+` to create a new Codespace.
 
 GitHub opens the Codespace in a new browser tab. Wait for the container setup to finish, then confirm that the repository files are visible in the Explorer and that the integrated terminal opens without errors.
 
