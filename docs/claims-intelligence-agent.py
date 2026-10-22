@@ -155,6 +155,7 @@ the input. Do not call either knowledge-base tool in this mode. Your role is to:
         self,
         knowledge_base_name: str,
         connection_environment_variable: str,
+        expected_url: str,
     ) -> str:
         """Find a RemoteTool connection for a Foundry IQ knowledge base."""
         expected_name = os.environ.get(connection_environment_variable, "")
@@ -188,6 +189,13 @@ the input. Do not call either knowledge-base tool in this mode. Your role is to:
                 f"No Foundry RemoteTool connection targets '{knowledge_base_name}'. "
                 "Redeploy labautomation/azuredeploy.json, then rerun --setup-agent."
             )
+        if connection.target != expected_url:
+            raise RuntimeError(
+                f"Foundry RemoteTool connection '{connection.name}' targets {connection.target}, "
+                f"but the agent expects {expected_url}. Run python "
+                "fix_policies_connection.py for policies-kb or "
+                "fix_crash_statements_connection.py for crash-statements-kb."
+            )
         return connection.id
 
     def _build_policy_knowledge_tool(self) -> MCPTool:
@@ -199,17 +207,19 @@ the input. Do not call either knowledge-base tool in this mode. Your role is to:
         if not search_endpoint:
             raise RuntimeError("FOUNDRY_IQ_SEARCH_ENDPOINT is not set. Complete Task 1 first.")
 
+        server_url = (
+            f"{search_endpoint}/knowledgebases/{POLICIES_KNOWLEDGE_BASE_NAME}"
+            f"/mcp?api-version={MCP_API_VERSION}"
+        )
         return MCPTool(
             server_label="policies-knowledge-base",
-            server_url=(
-                f"{search_endpoint}/knowledgebases/{POLICIES_KNOWLEDGE_BASE_NAME}"
-                f"/mcp?api-version={MCP_API_VERSION}"
-            ),
+            server_url=server_url,
             require_approval="never",
             allowed_tools=["knowledge_base_retrieve"],
             project_connection_id=self._get_knowledge_connection_id(
                 POLICIES_KNOWLEDGE_BASE_NAME,
                 "FOUNDRY_IQ_POLICIES_CONNECTION_NAME",
+                server_url,
             ),
         )
 
@@ -222,17 +232,19 @@ the input. Do not call either knowledge-base tool in this mode. Your role is to:
         if not search_endpoint:
             raise RuntimeError("FOUNDRY_IQ_SEARCH_ENDPOINT is not set. Complete Task 1 first.")
 
+        server_url = (
+            f"{search_endpoint}/knowledgebases/{CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME}"
+            f"/mcp?api-version={MCP_API_VERSION}"
+        )
         return MCPTool(
             server_label="crash-statements-knowledge-base",
-            server_url=(
-                f"{search_endpoint}/knowledgebases/{CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME}"
-                f"/mcp?api-version={MCP_API_VERSION}"
-            ),
+            server_url=server_url,
             require_approval="never",
             allowed_tools=["knowledge_base_retrieve"],
             project_connection_id=self._get_knowledge_connection_id(
                 CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME,
                 "FOUNDRY_IQ_CRASH_STATEMENTS_CONNECTION_NAME",
+                server_url,
             ),
         )
 

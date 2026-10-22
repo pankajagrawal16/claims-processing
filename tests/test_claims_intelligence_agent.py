@@ -22,6 +22,36 @@ from enterprise_models import (
 )
 
 
+def test_knowledge_connection_rejects_stale_target(monkeypatch):
+    monkeypatch.delenv("FOUNDRY_IQ_POLICIES_CONNECTION_NAME", raising=False)
+    expected_url = (
+        "https://example.search.windows.net/knowledgebases/policies-kb/mcp"
+        "?api-version=2026-08-01-preview"
+    )
+    connection = SimpleNamespace(
+        type="RemoteTool",
+        name="policies-connection",
+        id="policies-connection-id",
+        target=expected_url.replace("2026-08-01-preview", "2026-04-01"),
+    )
+    agent = claims_intelligence_agent.ClaimsIntelligenceAgent.__new__(
+        claims_intelligence_agent.ClaimsIntelligenceAgent
+    )
+    agent.client = SimpleNamespace(connections=SimpleNamespace(list=lambda: [connection]))
+    with pytest.raises(RuntimeError, match="fix_policies_connection.py"):
+        agent._get_knowledge_connection_id(
+            "policies-kb", "FOUNDRY_IQ_POLICIES_CONNECTION_NAME", expected_url
+        )
+
+    connection.target = expected_url
+    assert (
+        agent._get_knowledge_connection_id(
+            "policies-kb", "FOUNDRY_IQ_POLICIES_CONNECTION_NAME", expected_url
+        )
+        == connection.id
+    )
+
+
 @pytest.mark.parametrize(
     ("requires_escalation", "expected_status", "expected_error_count"),
     [

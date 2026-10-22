@@ -123,6 +123,20 @@ you enter `approve`, `escalate`, or `deny`; invalid responses prompt again inste
 allowing the workflow to continue. The default confidence threshold is `0.90`. Set
 `HUMAN_REVIEW_CONFIDENCE_THRESHOLD` in the repository-root `.env` to change it.
 
+??? tip "💡 Why did I run this step?"
+
+    **Why two agents in sequence.** The workflow works the way a claims team does. The intake step produces
+    structured facts, and the intelligence step decides using those facts. Each step's output is the next step's input.
+
+    **Why the approval and denial runs.** The same claim gets a different outcome under `COMP-AUTO-001` and
+    `LIAB-AUTO-001`. Running both shows that the decision comes from the policy text, not from a hardcoded answer.
+
+    **Why the confidence gate.** The model reports how confident it is. A low score sends the decision to a person
+    rather than automating it. The `0.90` threshold is a business choice, so change it in `.env` deliberately.
+
+    **What to take away.** Compare the two runs side by side. If a decision changes when it should not, check the
+    retrieved policy before you change the workflow.
+
 ### Task 3: Complete human-in-the-loop review when requested
 
 When the intelligence agent returns a confidence score below the configured threshold,

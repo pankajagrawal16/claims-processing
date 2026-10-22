@@ -12,7 +12,9 @@ The result has the same fields as the sequential workflow's final decision.
 """
 
 import argparse
+import asyncio
 import json
+import logging
 import os
 import re
 import shlex
@@ -22,14 +24,18 @@ from typing import Never
 
 from agent_framework import (
     AgentExecutorResponse,
+    AgentResponse,
+    AgentResponseUpdate,
     Executor,
     Message,
+    ResponseStream,
     WorkflowBuilder,
     WorkflowContext,
     handler,
     response_handler,
 )
 from agent_framework.foundry import FoundryAgent
+from agent_framework.openai import OpenAIChatOptions
 from azure.identity.aio import DefaultAzureCredential
 
 INTAKE_AGENT = os.getenv("CLAIMS_INTAKE_AGENT_NAME", "claims-intake-agent")
@@ -44,6 +50,7 @@ REVIEW_ACTIONS = {
     "reject": ("overridden", "DENIED"), "r": ("overridden", "DENIED"),
 }
 REVIEW_PROMPT = "Type 'approve' to accept, 'escalate' for manual review, or 'deny' to override."
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -87,13 +94,55 @@ def parse_request(text: str) -> ClaimRequest:
     return ClaimRequest(statement_file, args.claim_id, args.amount, args.policy.upper() or None)
 
 
+class CompletingFoundryAgent(FoundryAgent):
+    def run(self, messages=None, *, stream=False, session=None, **kwargs):
+        async def complete():
+            try:
+                async with asyncio.timeout(300):
+                    response = await super(CompletingFoundryAgent, self).run(
+                        messages, stream=False, session=session, **kwargs
+                    )
+                    while response.continuation_token is not None:
+                        await asyncio.sleep(2)
+                        response = await super(CompletingFoundryAgent, self).run(
+                            session=session,
+                            options=OpenAIChatOptions(continuation_token=response.continuation_token),
+                        )
+            except TimeoutError:
+                logger.error("Foundry agent %s timed out before completing its response.", self.name)
+                raise
+            if not response.text and not response.user_input_requests:
+                logger.error("Foundry agent %s completed without a response.", self.name)
+                raise RuntimeError(f"Foundry agent {self.name} completed without a response.")
+            return response
+
+        if not stream:
+            return complete()
+
+        result: AgentResponse | None = None
+
+        async def updates():
+            nonlocal result
+            result = await complete()
+            for message in result.messages:
+                yield AgentResponseUpdate(role=message.role, contents=message.contents)
+
+        def finalizer(_updates):
+            if result is None:
+                raise RuntimeError(f"Foundry agent {self.name} did not finish.")
+            return result
+
+        return ResponseStream(updates(), finalizer=finalizer)
+
+
 def connect(agent_name: str, step_id: str, credential) -> FoundryAgent:
     endpoint = os.environ.get("FOUNDRY_PROJECT_ENDPOINT") or os.environ["AI_FOUNDRY_PROJECT_ENDPOINT"]
-    return FoundryAgent(
+    return CompletingFoundryAgent(
         project_endpoint=endpoint,
         agent_name=agent_name,
         credential=credential,
         name=step_id,  # the intelligence agent appears twice and step names must be unique
+        default_options={"store": False},
     )
 
 

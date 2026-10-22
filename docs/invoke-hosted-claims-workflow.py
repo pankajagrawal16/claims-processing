@@ -38,6 +38,14 @@ def _client(local: bool, agent_name: str):
     return project.get_openai_client(agent_name=agent_name)
 
 
+def _check_response(response) -> None:
+    if response.status == "failed":
+        error = response.error
+        raise RuntimeError(f"Workflow failed: {error.message if error else 'No server error details were returned.'}")
+    if response.status != "completed":
+        raise RuntimeError(f"Workflow did not complete (status: {response.status}).")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Invoke the hosted claims workflow")
     parser.add_argument("image_path", nargs="?", help="Statement image path (only its file name is used)")
@@ -67,12 +75,18 @@ def main() -> None:
 
     response = client.responses.create(input=text)
     while True:
+        _check_response(response)
         review = next((item for item in response.output if item.type == "function_call"), None)
         if review is None:
             break
         if not sys.stdin.isatty():
             raise RuntimeError("Human review is required, but this is a non-interactive terminal.")
-        data = json.loads(review.arguments)["request_event"]["data"]
+        if not response.agent_session_id:
+            raise RuntimeError("The server did not return an agent session ID to resume human review.")
+        arguments = json.loads(review.arguments)
+        data = arguments.get("request") or arguments.get("request_event", {}).get("data")
+        if not isinstance(data, dict) or "result" not in data:
+            raise RuntimeError("The server returned an unrecognized human-review request.")
         decision = data["result"]["coverage_decision"]
         print("  Human review requested...")
         print(
@@ -83,9 +97,12 @@ def main() -> None:
         answer = input(f"    {data['prompt']} ")
         response = client.responses.create(
             previous_response_id=response.id,
-            input=[{"type": "function_call_output", "call_id": review.call_id, "output": json.dumps(answer)}],
+            extra_body={"agent_session_id": response.agent_session_id},
+            input=[{"type": "function_call_output", "call_id": review.call_id, "output": answer}],
         )
 
+    if not response.output_text:
+        raise RuntimeError("Workflow completed without a final decision.")
     print("\n--- Final Decision ---")
     print(response.output_text)
 

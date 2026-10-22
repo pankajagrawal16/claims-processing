@@ -151,7 +151,9 @@ def run_mistral_ocr(image_path: Path) -> dict[str, Any]:
     }
 
 
-def _get_knowledge_connection_id(client: AIProjectClient, knowledge_base_name: str) -> str:
+def _get_knowledge_connection_id(
+    client: AIProjectClient, knowledge_base_name: str, expected_url: str
+) -> str:
     """Find the RemoteTool connection that targets the Foundry IQ knowledge base."""
     expected_name = os.environ.get("FOUNDRY_IQ_CRASH_STATEMENTS_CONNECTION_NAME", "")
     connections = [
@@ -175,6 +177,12 @@ def _get_knowledge_connection_id(client: AIProjectClient, knowledge_base_name: s
             f"No Foundry RemoteTool connection targets '{knowledge_base_name}'. "
             "Redeploy labautomation/azuredeploy.json, then rerun the intake agent."
         )
+    if connection.target != expected_url:
+        raise RuntimeError(
+            f"Foundry RemoteTool connection '{connection.name}' targets {connection.target}, "
+            f"but the agent expects {expected_url}. Update the Foundry project's RemoteTool "
+            "connection target (see Challenge 2 troubleshooting)."
+        )
     return connection.id
 
 
@@ -187,15 +195,18 @@ def _build_crash_statements_knowledge_tool(client: AIProjectClient) -> MCPTool:
     if not search_endpoint:
         raise RuntimeError("FOUNDRY_IQ_SEARCH_ENDPOINT is not set. Complete Task 1 first.")
 
+    server_url = (
+        f"{search_endpoint}/knowledgebases/{CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME}"
+        f"/mcp?api-version={MCP_API_VERSION}"
+    )
     return MCPTool(
         server_label=CRASH_STATEMENTS_SERVER_LABEL,
-        server_url=(
-            f"{search_endpoint}/knowledgebases/{CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME}"
-            f"/mcp?api-version={MCP_API_VERSION}"
-        ),
+        server_url=server_url,
         require_approval="never",
         allowed_tools=["knowledge_base_retrieve"],
-        project_connection_id=_get_knowledge_connection_id(client, CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME),
+        project_connection_id=_get_knowledge_connection_id(
+            client, CRASH_STATEMENTS_KNOWLEDGE_BASE_NAME, server_url
+        ),
     )
 
 

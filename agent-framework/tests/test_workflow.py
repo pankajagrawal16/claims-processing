@@ -1,19 +1,24 @@
 """Offline tests: the two Foundry agents are replaced by scripted fakes."""
 
 import json
+import runpy
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
+import httpx
 import pytest
 from agent_framework import (
     AgentResponse,
-    BaseAgent,
     Message,
+    RawAgent,
     ResponseStream,
     WorkflowRunState,
 )
+from agent_framework.foundry import FoundryAgent
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import main as hosting  # noqa: E402
 import workflow  # noqa: E402
 
 POLICY = {
@@ -25,11 +30,11 @@ POLICY = {
 }
 
 
-class FakeAgent(BaseAgent):
+class FakeAgent(RawAgent):
     """Replies by task keyword and records every prompt it receives."""
 
     def __init__(self, name: str, replies: dict[str, str], prompts: list[tuple[str, str]]) -> None:
-        super().__init__(name=name)
+        super().__init__(client=SimpleNamespace(STORES_BY_DEFAULT=True), name=name, default_options={"store": False})
         self.replies, self.prompts = replies, prompts
 
     def run(self, messages=None, *, stream=False, session=None, **kwargs):
@@ -79,6 +84,52 @@ def build(monkeypatch):
 
 def final(result) -> dict:
     return json.loads(result.get_outputs()[-1][0].text)
+
+
+@pytest.mark.asyncio
+async def test_foundry_agent_waits_for_background_completion(monkeypatch):
+    calls = []
+    pending = AgentResponse(continuation_token={"response_id": "pending-response"})
+    completed = AgentResponse(messages=[Message("assistant", ["Complete decision"])])
+
+    def scripted_run(self, messages=None, *, stream=False, session=None, options=None, **kwargs):
+        calls.append((messages, stream, session, options))
+
+        async def respond():
+            return pending if len(calls) == 1 else completed
+
+        return respond()
+
+    async def no_delay(_seconds):
+        pass
+
+    monkeypatch.setattr(FoundryAgent, "run", scripted_run)
+    monkeypatch.setattr(workflow.asyncio, "sleep", no_delay)
+    agent = object.__new__(workflow.CompletingFoundryAgent)
+    session = object()
+    stream = agent.run([Message("user", ["Claim"])], stream=True, session=session)
+    updates = [update async for update in stream]
+
+    assert [update.text for update in updates] == ["Complete decision"]
+    assert (await stream.get_final_response()).text == "Complete decision"
+    assert len(calls) == 2
+    assert calls[1][0] is None and calls[1][2] is session
+    assert calls[1][3]["continuation_token"] == pending.continuation_token
+
+
+@pytest.mark.asyncio
+async def test_foundry_agent_rejects_empty_completed_response(monkeypatch):
+    def empty_run(self, messages=None, *, stream=False, **kwargs):
+        async def respond():
+            return AgentResponse()
+
+        return respond()
+
+    monkeypatch.setattr(FoundryAgent, "run", empty_run)
+    agent = object.__new__(workflow.CompletingFoundryAgent)
+    agent.name = "intake_agent"
+    with pytest.raises(RuntimeError, match="completed without a response"):
+        await agent.run([Message("user", ["Claim"])])
 
 
 # --- the same inputs as claims-sequential-workflow.py -------------------------------------------
@@ -187,6 +238,114 @@ async def test_invalid_review_answer_asks_again(build):
     assert "Invalid response" in second.data["prompt"]
 
     assert final(await wf.run(responses={second.request_id: "approve"}))["status"] == "APPROVED"
+
+
+@pytest.mark.asyncio
+async def test_hosted_review_and_new_claim_have_separate_state(build, monkeypatch):
+    build(0.5)
+    monkeypatch.setattr(hosting, "build_workflow", lambda credential: workflow.build_workflow(credential=credential))
+    host = hosting.ResponsesHostServer(
+        workflow=hosting.create_workflow,
+        parse_response=hosting.parse_response,
+        checkpoint_store_provider=hosting.CheckpointStoreProvider(),
+    )
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=host), base_url="http://testserver") as client:
+        first = (await client.post("/responses", json={"input": "--indexed-claim crash3"})).json()
+        assert first["status"] == "completed", first.get("error")
+        call = next(item for item in first["output"] if item["type"] == "function_call")
+        assert json.loads(call["arguments"])["request"]["result"]["status"] == "PENDING_HUMAN_REVIEW"
+
+        second = (await client.post("/responses", json={"input": "--indexed-claim crash4"})).json()
+        assert second["status"] == "completed", second.get("error")
+        assert any(item["type"] == "function_call" for item in second["output"])
+
+        continued = (await client.post("/responses", json={
+            "previous_response_id": first["id"],
+            "agent_session_id": first["agent_session_id"],
+            "input": [{"type": "function_call_output", "call_id": call["call_id"], "output": "approve"}],
+        })).json()
+        assert continued["status"] == "completed", continued.get("error")
+        text = "".join(part["text"] for item in continued["output"] if item["type"] == "message"
+                       for part in item["content"] if part["type"] == "output_text")
+        assert json.loads(text)["human_review"]["status"] == "confirmed"
+
+
+def test_terminal_client_reports_failed_or_empty_responses(monkeypatch, capsys):
+    client_script = runpy.run_path(str(Path(__file__).resolve().parents[2] / "docs/invoke-hosted-claims-workflow.py"))
+    monkeypatch.setitem(client_script["main"].__globals__, "_client", lambda *_: SimpleNamespace(
+        responses=SimpleNamespace(create=lambda **_: SimpleNamespace(
+            status="failed", error=SimpleNamespace(message="Workflow state error"), output=[], output_text=""
+        ))
+    ))
+    monkeypatch.setattr(sys, "argv", ["invoke-hosted-claims-workflow.py", "--local", "--indexed-claim", "crash3"])
+    with pytest.raises(RuntimeError, match="Workflow state error"):
+        client_script["main"]()
+    assert "--- Final Decision ---" not in capsys.readouterr().out
+
+    monkeypatch.setitem(client_script["main"].__globals__, "_client", lambda *_: SimpleNamespace(
+        responses=SimpleNamespace(create=lambda **_: SimpleNamespace(
+            status="completed", error=None, output=[], output_text=""
+        ))
+    ))
+    with pytest.raises(RuntimeError, match="without a final decision"):
+        client_script["main"]()
+
+
+def test_terminal_client_resumes_review_in_original_session(monkeypatch, capsys):
+    client_script = runpy.run_path(str(Path(__file__).resolve().parents[2] / "docs/invoke-hosted-claims-workflow.py"))
+    pending = SimpleNamespace(
+        status="completed", error=None, id="response-1", agent_session_id="session-1", output_text="",
+        output=[SimpleNamespace(
+            type="function_call", call_id="call-1",
+            arguments=json.dumps({"request": {
+                "result": {"coverage_decision": {"confidence_score": 0.5}},
+                "decision_status": "APPROVED", "threshold": 0.9, "prompt": "Approve?",
+            }}),
+        )],
+    )
+    done = SimpleNamespace(
+        status="completed", error=None, id="response-2", agent_session_id="session-1",
+        output=[], output_text='{"status": "APPROVED"}',
+    )
+    requests = []
+
+    def create(**kwargs):
+        requests.append(kwargs)
+        return pending if len(requests) == 1 else done
+
+    monkeypatch.setitem(client_script["main"].__globals__, "_client",
+                        lambda *_: SimpleNamespace(responses=SimpleNamespace(create=create)))
+    monkeypatch.setattr(sys, "argv", ["invoke-hosted-claims-workflow.py", "--local", "--indexed-claim", "crash3"])
+    monkeypatch.setattr(sys, "stdin", SimpleNamespace(isatty=lambda: True))
+    monkeypatch.setattr("builtins.input", lambda _: "approve")
+    client_script["main"]()
+    assert requests[1] == {
+        "previous_response_id": "response-1", "extra_body": {"agent_session_id": "session-1"},
+        "input": [{"type": "function_call_output", "call_id": "call-1", "output": "approve"}],
+    }
+    assert '{"status": "APPROVED"}' in capsys.readouterr().out
+
+
+def test_openai_client_sends_session_id_in_continuation_body():
+    from openai import OpenAI
+
+    bodies = []
+
+    def handle(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={
+            "id": "response-2", "object": "response", "status": "completed",
+            "output": [], "agent_session_id": "session-1",
+        })
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as transport:
+        client = OpenAI(base_url="http://localhost:8088", api_key="local", http_client=transport)
+        response = client.responses.create(
+            previous_response_id="response-1",
+            extra_body={"agent_session_id": "session-1"},
+            input=[{"type": "function_call_output", "call_id": "call-1", "output": "approve"}],
+        )
+    assert bodies[0]["agent_session_id"] == response.agent_session_id == "session-1"
 
 
 @pytest.mark.asyncio

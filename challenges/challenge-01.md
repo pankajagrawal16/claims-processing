@@ -55,7 +55,39 @@ Open the resource group assigned to you and confirm that its resources have been
 
 ![Resources deployed in the assigned resource group](images/resource-group-resources.png)
 
-Verify that you can access the resources used in the later challenges, including the Microsoft Foundry project, the `gpt-5.4` and `mistral-document-ai-2512` model deployments, the Azure AI Search service, and the Storage account.
+#### Verify access to the resources used in later challenges
+
+Check each resource below in the portal. You only need to open and read them. Do not change any settings.
+
+**a. Microsoft Foundry project and model deployments**
+
+1. Open [ai.azure.com](https://ai.azure.com) and sign in with the lab account.
+2. Use the project selector at the top of the page to select the Foundry project in your resource group.
+3. Make sure the **New Foundry** toggle in the top bar is on.
+4. Select **Build** > **Models**. On the **Deployments** tab, select **Serverless deployments** and confirm these two deployments exist with **Deployment status** set to **Succeeded**:
+   - `gpt-5.4` (Model `gpt-5.4`, Deployment type **Global Standard**)
+   - `mistral-document-ai-2512` (Model `mistral-document-ai-2512`, Version `1`)
+
+![Models page in the Foundry project with the gpt-5.4 and mistral-document-ai-2512 deployments listed as Succeeded](images/foundry-model-deployments.png)
+
+5. Select **Manage** > **Project details** > **Connected resources**. Confirm that the Azure AI Search connection is listed. The Storage account connection is optional at this stage.
+
+Do not copy the API key shown on the model page. The setup script in step 3 retrieves the keys for you.
+
+**b. Azure AI Search service**
+
+1. In the [Azure portal](https://portal.azure.com), open the resource group and select the **Azure AI Search** service.
+2. On the **Overview** page, confirm that the service loads without errors.
+3. Under **Search management**, select **Indexes**. The `crash-statements` index is created in Challenge 2, so it may not be listed yet. That is expected.
+4. Under **Agentic retrieval**, confirm that the page opens without errors.
+
+**c. Storage account**
+
+1. In the Azure portal, open the resource group and select the **Storage account**.
+2. On the **Overview** page, confirm that the account loads without errors.
+3. Select **Data storage** > **Containers**. Confirm that the `claims-data` and `policies` containers are listed. Step 4 below checks the file counts.
+
+When all three checks pass, continue to the next step.
 
 ### 2. Get the repository
 
@@ -143,7 +175,53 @@ Mistral Document AI key and endpoint, Azure AI Search key and endpoint, and Stor
 connection string required by Challenges 2 through 6. The file is excluded from Git,
 written with permissions `600`, and its secret values are not displayed.
 
+??? tip "💡 Why did I run this step?"
+
+    **What the script does.** The lab deployment already created the Foundry project, Azure AI Search
+    service, Mistral Document AI deployment, and Storage account. The script reads the outputs of that
+    deployment and writes the endpoints and keys to a local `.env` file.
+
+    **Why this matters.** Every Python command in Challenges 2 to 6 reads its settings from `.env`. The code
+    never contains an endpoint or a key, so you can share the repository without leaking credentials.
+
+    **Why the file is locked down.** `.env` is excluded from Git and readable only by your user. The
+    script never prints the secrets. When you check that a value exists, check it by name, not by printing it.
+
+    **Why you may need to run it again.** If the deployment changes, rerun the script. Afterward, restore any
+    optional settings you added, such as the Application Insights connection string in Challenge 5.
+
 ### 4. Verify the Blob Storage assets
+
+??? tip "💡 Why did I run this step?"
+
+    **What you are checking.** The lab stores its raw input data in Azure Blob Storage, in two containers:
+
+    - **`claims-data`** holds the 17 claim files for the five crashes. Each crash folder has
+      `raw/statements` (the driver statement images) and `raw/vehicle-damage` (the damage photos).
+    - **`policies`** holds the 5 policy documents that define the coverage rules the agents must follow.
+
+    **Why the later challenges depend on it.**
+
+    - [Challenge 2](challenge-02.md) OCRs the statement images and indexes them in the `crash-statements` search index.
+      Task 7 of that challenge also connects `claims-data` to your Foundry project.
+    - [Challenge 3](challenge-03.md) builds a Foundry IQ knowledge source over the `policies` container, so the agent can cite the policy rules.
+
+    **Why count the files instead of only running the command.** A missing or partial upload does not
+    stop the later steps with an error. The agent still runs, but it has less evidence or fewer
+    policies to cite, and the answer looks plausible. Checking the counts now catches that problem while it is
+    still cheap to fix. `az storage blob list` returns successfully even for an empty container, so the
+    count is the real test.
+
+    **Why the connection string comes from `.env`.** The get-keys script saved the Storage connection
+    string to `.env` with restricted permissions. Reusing it lets you read the containers without
+    assigning yourself a data-plane role, and without printing the key.
+
+    **Why the fix is an upload, not a redeploy.** `upload-assets` only copies blobs into the containers.
+    It does not change the infrastructure, so it is safe to run again. Redeploying the lab is
+    not something you do as a participant.
+
+    **What to take away.** Before you rely on a data source, confirm that it contains what you expect.
+    You will use the same habit in every later challenge when you check an index, a knowledge source, or an agent's output.
 
 Before continuing, confirm that the lab deployment uploaded the claim and policy files.
 Find the Storage account name in the output from `get-keys.sh`, then run these commands
@@ -222,19 +300,41 @@ python docs/claims-intake-agent.py --help
 > script before the lab begins. Participants run only `labautomation/get-keys.sh`
 > after the platform deployment succeeds.
 
+## 🔍 Validation checklist
+
+Tick each item as you complete it. Your progress is saved in this browser. Do not move on to
+Challenge 2 until every item is checked.
+
+- [ ] I signed in to the event console at [emea.microhack.cloud](https://emea.microhack.cloud/) and found my own Azure lab credentials.
+- [ ] I signed in to the Azure portal with the assigned lab account, not a personal or work account.
+- [ ] The assigned resource group opens and its resources are deployed successfully.
+- [ ] The Foundry project opens at [ai.azure.com](https://ai.azure.com), and the **Models** page lists `gpt-5.4` and `mistral-document-ai-2512` with the status **Succeeded**.
+- [ ] The Azure AI Search service opens and shows no errors. The `crash-statements` index is created in Challenge 2, so it is not expected yet.
+- [ ] The Storage account opens, and the `claims-data` and `policies` containers are listed.
+- [ ] I have the repository open, either in a Codespace that uses the **Claims Hack** dev container or cloned to my computer.
+- [ ] `az --version` runs, and `az login` is complete with the lab account (`az account show` returns the assigned subscription).
+- [ ] `uv sync` finished without errors, and the virtual environment is active.
+- [ ] A `.env` file exists in the repository root, and `git status` does not list it.
+- [ ] `claims-data` contains 17 blobs and `policies` contains 5 blobs.
+- [ ] `python docs/claims-intake-agent.py --help` completes successfully.
+- [ ] I did not run `labautomation/deploy-lab.ps1`.
+- [ ] I can explain why the Blob Storage and Foundry model checks matter before Challenges 2 and 3.
+
 ## 🚀 Go Further
 
 Review the [solution architecture](../README.md#architecture) and identify where each deployed Azure resource is used in the five build challenges.
 
-## 🛠️ Troubleshooting
+??? question "🛠️ Troubleshooting"
 
-- **The Azure resource group is missing:** Confirm that you signed in with the assigned lab account and selected the assigned subscription in the Azure portal.
-- **The setup script reports an authorization error:** Confirm that the Codespace is signed in with the assigned lab account. That account must be able to read deployment outputs and list keys for the Foundry, Azure AI Search, and Storage resources.
-- **The Blob Storage verification reports an authorization error:** Run the get-keys script again (`get-keys.sh` in Bash/zsh or `get-keys.ps1` in PowerShell) and confirm that `.env` contains a non-empty `AZURE_STORAGE_CONNECTION_STRING` value. Do not print or share the value.
-- **A Blob Storage container is empty or incomplete:** Run `labautomation/upload-assets.sh` with your subscription, resource group, and Storage account values, then repeat the verification commands.
-- **The repository is not visible:** Confirm that you opened `https://github.com/pankajagrawal16/claims-processing` (Option A) or cloned that URL (Option B). For Option A, make sure you are signed in to your own GitHub account.
-- **The dev container configuration is unavailable:** Confirm that you opened `pankajagrawal16/claims-processing` before creating the Codespace.
-- **The Codespace does not finish starting:** Review the creation log for the failing step, then rebuild the container or recreate the Codespace.
+    - **The Azure resource group is missing:** Confirm that you signed in with the assigned lab account and selected the assigned subscription in the Azure portal.
+    - **A Foundry model deployment is missing or not Succeeded:** Tell your coach and include the deployment name and status. Do not redeploy the lab infrastructure yourself.
+    - **The Foundry project does not open at ai.azure.com or the Models page is empty:** Confirm that you signed in with the lab account and selected the project in your resource group. If it still fails, ask your coach to check your role assignments.
+    - **The setup script reports an authorization error:** Confirm that the Codespace is signed in with the assigned lab account. That account must be able to read deployment outputs and list keys for the Foundry, Azure AI Search, and Storage resources.
+    - **The Blob Storage verification reports an authorization error:** Run the get-keys script again (`get-keys.sh` in Bash/zsh or `get-keys.ps1` in PowerShell) and confirm that `.env` contains a non-empty `AZURE_STORAGE_CONNECTION_STRING` value. Do not print or share the value.
+    - **A Blob Storage container is empty or incomplete:** Run `labautomation/upload-assets.sh` with your subscription, resource group, and Storage account values, then repeat the verification commands.
+    - **The repository is not visible:** Confirm that you opened `https://github.com/pankajagrawal16/claims-processing` (Option A) or cloned that URL (Option B). For Option A, make sure you are signed in to your own GitHub account.
+    - **The dev container configuration is unavailable:** Confirm that you opened `pankajagrawal16/claims-processing` before creating the Codespace.
+    - **The Codespace does not finish starting:** Review the creation log for the failing step, then rebuild the container or recreate the Codespace.
 
 ## 🧠 Conclusion
 

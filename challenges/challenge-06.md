@@ -137,6 +137,19 @@ same payout sink blocks the attempted action before its body executes.
 
 Confirm in the output that the payout is refused, not silently approved for the injected amount.
 
+??? tip "💡 Why did I run this step?"
+
+    **Why run the clean scenario first.** It is the baseline. If the clean run is also blocked, the policy is too
+    strict, not the attack. You need both results to judge the defense.
+
+    **Why the attack is blocked even though the text looks harmless.** The rule checks where the data came from,
+    not what the text says. An attacker can write any words, so checking the words is unreliable. The source label is not.
+
+    **Why the label travels with the data.** Each value keeps its trust label through the run. A later step can
+    still see that the payout request began in claimant text.
+
+    **What to take away.** The defense is decided by the label, not by the wording. Keep that in mind when you design your own checks.
+
 ### Task 2: Block a PII exfiltration attempt
 
 ```bash
