@@ -13,7 +13,7 @@ and policy assets are available in Blob Storage.
 
 ## Prerequisites
 
-* Sign in at the [Intelligent Claims Processing event page](https://app-mhfb-fc1fed64d4.azurewebsites.net/intelligent-claims-processing)
+* Sign in at the [Intelligent Claims Processing event page](http://aka.ms/claims-processing)
   with the access code provided by the organizers. This gives you the credentials for
   the EMEA hack portal.
 * Receive the assigned Azure and GitHub lab credentials from the Hackbox

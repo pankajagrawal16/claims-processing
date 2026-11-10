@@ -20,7 +20,7 @@ credentials. Your event lead provides a username and password for the console.
 Use them only during the event window your event lead set.
 
 If you don't have the console username and password yet, open the
-[Intelligent Claims Processing event page](https://app-mhfb-fc1fed64d4.azurewebsites.net/intelligent-claims-processing)
+[Intelligent Claims Processing event page](http://aka.ms/claims-processing)
 and sign in with the access code provided by the organizers. This gives you the
 credentials for the EMEA hack portal.
 
